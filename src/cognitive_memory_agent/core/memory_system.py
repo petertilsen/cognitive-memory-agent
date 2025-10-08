@@ -2,115 +2,310 @@
 
 import time
 from collections import deque
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Any, Tuple
 import numpy as np
 
 from ..models.memory import MemoryItem, CognitiveState
+from .vector_store import VectorStore
 
 
 class CognitiveMemorySystem:
-    """Multi-layered cognitive memory system."""
+    """Multi-layered cognitive memory system with vector search and ReAct integration."""
     
-    def __init__(self):
+    def __init__(self, embedding_model: str = "all-MiniLM-L6-v2"):
         # Layered memory buffers
         self.immediate_buffer = deque(maxlen=8)
         self.working_buffer = deque(maxlen=64)
         self.episodic_buffer = deque(maxlen=256)
         self.semantic_memory: Dict[str, MemoryItem] = {}
         
-        # Cognitive state
+        # Vector storage for semantic search
+        self.vector_store = VectorStore(embedding_model)
+        
+        # Cognitive state tracking
         self.cognitive_state: Optional[CognitiveState] = None
         self.current_time = 0
         
         # Memory management parameters
         self.attention_threshold = 0.5
         self.consolidation_threshold = 0.8
+        self.similarity_threshold = 0.7
+        
+        # ReAct pattern tracking
+        self.reasoning_history: List[str] = []
+        self.action_history: List[str] = []
+        self.observation_history: List[str] = []
 
-    def add_memory(self, content: str, context: str = "", source: str = "user") -> str:
-        """Add new memory item to the system."""
+    def add_memory(self, content: str, context: str = "", source: str = "user", 
+                   memory_type: str = "factual") -> Dict[str, Any]:
+        """Add new memory item with enhanced metadata."""
+        # Generate embedding and add to vector store
+        vector_id = self.vector_store.add(content, {
+            "context": context,
+            "source": source,
+            "memory_type": memory_type,
+            "timestamp": time.time()
+        })
+        
+        # Create memory item
         memory_item = MemoryItem(
             content=content,
-            embedding=self._generate_embedding(content),
+            embedding=self.vector_store.vectors[vector_id],
             task_context=context,
-            source=source
+            source=source,
+            confidence=1.0 if source == "user" else 0.8
         )
         
+        # Add to appropriate buffers
         self.immediate_buffer.append(memory_item)
         self.working_buffer.append(memory_item)
         
-        return f"Memory added: {content[:50]}..."
+        # Check for similar existing memories
+        similar_memories = self._find_similar_memories(content)
+        
+        result = {
+            "memory_id": vector_id,
+            "content_preview": content[:50] + "..." if len(content) > 50 else content,
+            "similar_count": len(similar_memories),
+            "buffer_sizes": self.get_status()
+        }
+        
+        return result
 
-    def retrieve_relevant(self, query: str, top_k: int = 3) -> List[str]:
-        """Retrieve relevant memories based on query."""
-        relevant_items = []
-        all_buffers = list(self.working_buffer) + list(self.episodic_buffer)
+    def retrieve_relevant(self, query: str, top_k: int = 3, 
+                         include_context: bool = True) -> Dict[str, Any]:
+        """Enhanced retrieval with context and reasoning."""
+        # Vector-based semantic search
+        vector_results = self.vector_store.search(query, top_k * 2, self.similarity_threshold)
         
-        query_words = set(query.lower().split())
+        # Buffer-based contextual search
+        buffer_results = self._search_buffers(query)
         
-        for item in all_buffers:
-            content_words = set(item.content.lower().split())
-            
-            # Simple relevance scoring
-            if query_words & content_words:
-                item.boost()
-                relevant_items.append((item.relevance_score, item.content))
+        # Combine and rank results
+        combined_results = self._combine_search_results(vector_results, buffer_results, top_k)
         
-        # Sort by relevance and return top_k
-        relevant_items.sort(key=lambda x: x[0], reverse=True)
-        return [content for _, content in relevant_items[:top_k]]
+        # Update access patterns
+        for _, _, content, _ in combined_results:
+            self._update_access_pattern(content)
+        
+        result = {
+            "query": query,
+            "results": [
+                {
+                    "content": content,
+                    "similarity": similarity,
+                    "metadata": metadata,
+                    "source_buffer": self._identify_source_buffer(content)
+                }
+                for _, similarity, content, metadata in combined_results
+            ],
+            "total_found": len(combined_results),
+            "search_strategy": "hybrid_vector_buffer"
+        }
+        
+        return result
 
-    def consolidate_memory(self) -> Dict[str, int]:
-        """Consolidate and organize memory buffers."""
+    def consolidate_memory(self) -> Dict[str, Any]:
+        """Enhanced memory consolidation with forgetting curves and promotion."""
         self.current_time += 1
         
-        # Apply forgetting curve
-        for item in self.working_buffer:
+        consolidation_stats = {
+            "before_sizes": {
+                "immediate": len(self.immediate_buffer),
+                "working": len(self.working_buffer),
+                "episodic": len(self.episodic_buffer)
+            },
+            "operations": []
+        }
+        
+        # Apply forgetting curve to working buffer
+        forgotten_count = 0
+        for item in list(self.working_buffer):
             item.decay(self.current_time)
+            if item.relevance_score < self.attention_threshold:
+                self.working_buffer.remove(item)
+                forgotten_count += 1
         
-        # Remove low relevance items
-        before_count = len(self.working_buffer)
-        self.working_buffer = deque(
-            [item for item in self.working_buffer 
-             if item.relevance_score > self.attention_threshold],
-            maxlen=self.working_buffer.maxlen
-        )
+        consolidation_stats["operations"].append(f"Forgot {forgotten_count} low-relevance items")
         
-        # Promote high-access items to episodic memory
-        for item in self.working_buffer:
+        # Promote high-value items to episodic memory
+        promoted_count = 0
+        for item in list(self.working_buffer):
             if (item.access_count > 2 and 
                 item.relevance_score > self.consolidation_threshold):
                 if not any(id(item) == id(e) for e in self.episodic_buffer):
                     self.episodic_buffer.append(item)
+                    promoted_count += 1
+        
+        consolidation_stats["operations"].append(f"Promoted {promoted_count} items to episodic memory")
+        
+        # Semantic clustering and organization
+        cluster_count = self._organize_semantic_clusters()
+        consolidation_stats["operations"].append(f"Organized {cluster_count} semantic clusters")
+        
+        consolidation_stats["after_sizes"] = {
+            "immediate": len(self.immediate_buffer),
+            "working": len(self.working_buffer),
+            "episodic": len(self.episodic_buffer)
+        }
+        
+        return consolidation_stats
+
+    def update_cognitive_state(self, task: str, reasoning: str = "", 
+                              action: str = "", observation: str = "") -> Dict[str, Any]:
+        """Update cognitive state with ReAct pattern tracking."""
+        if not self.cognitive_state:
+            self.cognitive_state = CognitiveState(
+                current_task=task,
+                subtasks=[],
+                completed_subtasks=[],
+                information_gaps=[],
+                working_hypothesis="",
+                confidence_score=0.0
+            )
+        
+        # Update ReAct history
+        if reasoning:
+            self.reasoning_history.append(reasoning)
+        if action:
+            self.action_history.append(action)
+        if observation:
+            self.observation_history.append(observation)
+        
+        # Update cognitive state
+        self.cognitive_state.current_task = task
+        self.cognitive_state.context_history.append(f"R: {reasoning} A: {action} O: {observation}")
+        
+        # Calculate confidence based on completed actions
+        if len(self.action_history) > 0:
+            successful_actions = len([obs for obs in self.observation_history if "success" in obs.lower()])
+            self.cognitive_state.confidence_score = successful_actions / len(self.action_history)
         
         return {
-            "removed_items": before_count - len(self.working_buffer),
-            "working_buffer_size": len(self.working_buffer),
-            "episodic_buffer_size": len(self.episodic_buffer)
+            "current_task": self.cognitive_state.current_task,
+            "confidence": self.cognitive_state.confidence_score,
+            "react_cycle_count": len(self.reasoning_history),
+            "context_depth": len(self.cognitive_state.context_history)
         }
 
-    def get_status(self) -> Dict[str, int]:
-        """Get current memory system status."""
-        return {
+    def get_status(self) -> Dict[str, Any]:
+        """Enhanced status with cognitive state and ReAct metrics."""
+        base_status = {
             "immediate_buffer": len(self.immediate_buffer),
             "working_buffer": len(self.working_buffer),
             "episodic_buffer": len(self.episodic_buffer),
             "semantic_memory": len(self.semantic_memory),
+            "vector_store_size": len(self.vector_store.vectors),
             "current_time": self.current_time
         }
+        
+        if self.cognitive_state:
+            base_status.update({
+                "cognitive_state": {
+                    "current_task": self.cognitive_state.current_task,
+                    "confidence": self.cognitive_state.confidence_score,
+                    "subtasks_total": len(self.cognitive_state.subtasks),
+                    "subtasks_completed": len(self.cognitive_state.completed_subtasks)
+                }
+            })
+        
+        base_status.update({
+            "react_metrics": {
+                "reasoning_steps": len(self.reasoning_history),
+                "actions_taken": len(self.action_history),
+                "observations_made": len(self.observation_history)
+            }
+        })
+        
+        return base_status
 
-    def _generate_embedding(self, text: str) -> np.ndarray:
-        """Generate simple embedding for text."""
-        # Simplified hash-based embedding for now
-        import hashlib
-        hash_obj = hashlib.md5(text.encode())
-        hash_hex = hash_obj.hexdigest()
+    def _find_similar_memories(self, content: str, threshold: float = 0.8) -> List[Tuple[float, str]]:
+        """Find similar existing memories."""
+        results = self.vector_store.search(content, top_k=5, threshold=threshold)
+        return [(similarity, text) for _, similarity, text, _ in results]
+
+    def _search_buffers(self, query: str) -> List[Tuple[str, float, str]]:
+        """Search memory buffers for relevant content."""
+        results = []
+        query_words = set(query.lower().split())
         
-        vector = np.array([
-            int(hash_hex[i:i+2], 16) / 255.0 
-            for i in range(0, min(len(hash_hex), 384*2), 2)
-        ])
+        # Search all buffers
+        all_buffers = [
+            ("immediate", self.immediate_buffer),
+            ("working", self.working_buffer),
+            ("episodic", self.episodic_buffer)
+        ]
         
-        if len(vector) < 384:
-            vector = np.pad(vector, (0, 384 - len(vector)))
+        for buffer_name, buffer in all_buffers:
+            for item in buffer:
+                content_words = set(item.content.lower().split())
+                overlap = len(query_words & content_words)
+                if overlap > 0:
+                    relevance = overlap / len(query_words)
+                    results.append((buffer_name, relevance, item.content))
         
-        return vector[:384]
+        return results
+
+    def _combine_search_results(self, vector_results: List[Tuple], 
+                               buffer_results: List[Tuple], top_k: int) -> List[Tuple]:
+        """Combine and rank search results from different sources."""
+        combined = []
+        
+        # Add vector results with metadata
+        for idx, similarity, content, metadata in vector_results:
+            combined.append((idx, similarity * 1.2, content, metadata))  # Boost vector results
+        
+        # Add buffer results
+        for buffer_name, relevance, content in buffer_results:
+            # Check if already in vector results
+            if not any(content == c for _, _, c, _ in combined):
+                combined.append((len(combined), relevance, content, {"source_buffer": buffer_name}))
+        
+        # Sort by similarity/relevance and return top_k
+        combined.sort(key=lambda x: x[1], reverse=True)
+        return combined[:top_k]
+
+    def _update_access_pattern(self, content: str) -> None:
+        """Update access patterns for retrieved content."""
+        # Find and boost corresponding memory items
+        for buffer in [self.immediate_buffer, self.working_buffer, self.episodic_buffer]:
+            for item in buffer:
+                if item.content == content:
+                    item.boost()
+                    break
+
+    def _identify_source_buffer(self, content: str) -> str:
+        """Identify which buffer contains the content."""
+        for buffer_name, buffer in [
+            ("immediate", self.immediate_buffer),
+            ("working", self.working_buffer),
+            ("episodic", self.episodic_buffer)
+        ]:
+            if any(item.content == content for item in buffer):
+                return buffer_name
+        return "vector_store"
+
+    def _organize_semantic_clusters(self) -> int:
+        """Organize memories into semantic clusters."""
+        # Simplified clustering based on content similarity
+        clusters = {}
+        cluster_count = 0
+        
+        for item in self.episodic_buffer:
+            # Find cluster or create new one
+            assigned = False
+            for cluster_key, cluster_items in clusters.items():
+                if len(cluster_items) > 0:
+                    similarity = self.vector_store._cosine_similarity(
+                        item.embedding, cluster_items[0].embedding
+                    )
+                    if similarity > 0.8:
+                        cluster_items.append(item)
+                        assigned = True
+                        break
+            
+            if not assigned:
+                clusters[f"cluster_{cluster_count}"] = [item]
+                cluster_count += 1
+        
+        return len(clusters)
