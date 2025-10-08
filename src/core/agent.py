@@ -5,7 +5,7 @@ from typing import Optional
 from strands import Agent
 from strands.models import BedrockModel
 
-from ..tools.memory_tools import (
+from ..memory.tools import (
     add_to_memory, 
     retrieve_from_memory, 
     consolidate_memory, 

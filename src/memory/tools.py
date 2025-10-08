@@ -3,7 +3,7 @@
 import json
 from typing import Optional
 from strands import tool
-from ..memory.memory_system import CognitiveMemorySystem
+from .memory_system import CognitiveMemorySystem
 from ...config.settings import get_logger
 
 logger = get_logger("tools.memory_tools")

@@ -5,7 +5,7 @@ from collections import deque
 from typing import List, Dict, Optional, Any, Tuple
 import numpy as np
 
-from ..models.memory import MemoryItem, CognitiveState
+from .models import MemoryItem, CognitiveState
 from .vector_store import VectorStore
 from ...config.settings import get_logger
 
