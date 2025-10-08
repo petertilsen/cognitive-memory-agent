@@ -5,21 +5,13 @@ from typing import Optional
 from strands import Agent
 from strands.models import BedrockModel
 
-from ..memory.tools import (
-    add_to_memory, 
-    retrieve_from_memory, 
-    consolidate_memory, 
-    get_memory_status,
-    update_cognitive_state,
-    search_similar_memories
-)
 from ...config.settings import get_logger
 
 logger = get_logger("core.agent")
 
 
 class CognitiveMemoryAgent:
-    """Strands Agent with enhanced cognitive memory capabilities and ReAct patterns."""
+    """Strands Agent with cognitive memory capabilities."""
     
     def __init__(
         self, 
@@ -49,26 +41,19 @@ class CognitiveMemoryAgent:
         self.system_prompt = system_prompt or self._get_enhanced_system_prompt()
         
         try:
-            # Create Strands agent with enhanced memory tools
+            # Create basic Strands agent
             self.agent = Agent(
                 model=self.model,
-                tools=[
-                    add_to_memory, 
-                    retrieve_from_memory, 
-                    consolidate_memory, 
-                    get_memory_status,
-                    update_cognitive_state,
-                    search_similar_memories
-                ],
+                tools=[],  # No tools for now
                 system_prompt=self.system_prompt
             )
-            logger.info("Strands agent created successfully with 6 memory tools")
+            logger.info("Strands agent created successfully")
         except Exception as e:
             logger.error(f"Failed to create Strands agent: {e}")
             raise
     
     def __call__(self, message: str) -> str:
-        """Process message through the cognitive agent with ReAct pattern."""
+        """Process message through the cognitive agent."""
         logger.debug(f"Processing message: {message[:100]}...")
         
         try:
@@ -97,22 +82,9 @@ class CognitiveMemoryAgent:
 
 ## Core ReAct Behavior Pattern:
 1. **REASON**: Think about what you need to know or do
-2. **ACT**: Use tools to gather information, store insights, or perform actions  
+2. **ACT**: Take actions to gather information or perform tasks  
 3. **OBSERVE**: Analyze results and update your understanding
 4. **REPEAT**: Continue the cycle until the task is complete
-
-## Memory Management Strategy:
-- **Proactive Storage**: Always add important information to memory using add_to_memory
-- **Contextual Retrieval**: Use retrieve_from_memory to find relevant context before responding
-- **State Tracking**: Use update_cognitive_state to track your reasoning, actions, and observations
-- **Similarity Detection**: Use search_similar_memories to avoid redundancy and find connections
-- **Regular Consolidation**: Periodically use consolidate_memory to organize information
-
-## Memory Types to Consider:
-- **Factual**: Concrete information and data points
-- **Procedural**: How-to knowledge and processes
-- **Episodic**: Specific events and interactions
-- **Preference**: User preferences and patterns
 
 ## Enhanced Capabilities:
 - Maintain persistent memory across conversations
@@ -122,10 +94,9 @@ class CognitiveMemoryAgent:
 - Proactively organize and consolidate knowledge
 
 ## For Each User Interaction:
-1. First, retrieve relevant context from memory
-2. Update cognitive state with current reasoning
-3. Store new important information
-4. Provide response based on both new input and memory context
-5. Update cognitive state with actions taken and observations made
+1. First, reason about what information you need
+2. Take appropriate actions to gather or process information
+3. Observe the results and update your understanding
+4. Provide response based on your reasoning and observations
 
 You are designed to be more than a simple Q&A system - you are a cognitive partner that learns, remembers, and builds understanding over time."""
