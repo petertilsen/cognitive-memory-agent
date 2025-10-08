@@ -40,7 +40,7 @@ setup(
     },
     entry_points={
         "console_scripts": [
-            "cognitive-memory-agent=cognitive_memory_agent.main:main",
+            "cognitive-memory-agent=src.main:main",
         ],
     },
 )

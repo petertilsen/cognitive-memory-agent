@@ -38,7 +38,7 @@ def setup_logging(
         },
         "handlers": {},
         "loggers": {
-            "cognitive_memory_agent": {
+            "src": {
                 "level": log_level,
                 "handlers": [],
                 "propagate": False
@@ -63,7 +63,7 @@ def setup_logging(
             "formatter": "simple",
             "stream": "ext://sys.stdout"
         }
-        config["loggers"]["cognitive_memory_agent"]["handlers"].append("console")
+        config["loggers"]["src"]["handlers"].append("console")
         config["loggers"]["strands"]["handlers"].append("console")
         config["root"]["handlers"].append("console")
     
@@ -99,8 +99,8 @@ def setup_logging(
             "backupCount": 5
         }
         
-        config["loggers"]["cognitive_memory_agent"]["handlers"].extend(["file", "error_file"])
-        config["loggers"]["cognitive_memory_agent.core.memory_system"] = {
+        config["loggers"]["src"]["handlers"].extend(["file", "error_file"])
+        config["loggers"]["src.core.memory_system"] = {
             "level": "DEBUG",
             "handlers": ["memory_file"],
             "propagate": False
@@ -113,7 +113,7 @@ def setup_logging(
 
 def get_logger(name: str) -> logging.Logger:
     """Get a logger instance for the given name."""
-    return logging.getLogger(f"cognitive_memory_agent.{name}")
+    return logging.getLogger(f"src.{name}")
 
 
 # Initialize logging on import

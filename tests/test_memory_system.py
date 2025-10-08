@@ -8,7 +8,7 @@ from pathlib import Path
 src_path = Path(__file__).parent.parent / "src"
 sys.path.insert(0, str(src_path))
 
-from cognitive_memory_agent.core.memory_system import CognitiveMemorySystem
+from src.core.memory_system import CognitiveMemorySystem
 
 
 class TestCognitiveMemorySystem:
