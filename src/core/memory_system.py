@@ -41,11 +41,6 @@ class CognitiveMemorySystem:
         self.consolidation_threshold = 0.8
         self.similarity_threshold = 0.7
         
-        # ReAct pattern tracking
-        self.reasoning_history: List[str] = []
-        self.action_history: List[str] = []
-        self.observation_history: List[str] = []
-        
         logger.debug("CognitiveMemorySystem initialization complete")
 
     def add_memory(self, content: str, context: str = "", source: str = "user", 
@@ -197,7 +192,9 @@ class CognitiveMemorySystem:
 
     def update_cognitive_state(self, task: str, reasoning: str = "", 
                               action: str = "", observation: str = "") -> Dict[str, Any]:
-        """Update cognitive state with ReAct pattern tracking."""
+        """Update cognitive state with task information."""
+        logger.info("Updating cognitive state")
+        
         if not self.cognitive_state:
             self.cognitive_state = CognitiveState(
                 current_task=task,
@@ -208,28 +205,25 @@ class CognitiveMemorySystem:
                 confidence_score=0.0
             )
         
-        # Update ReAct history
-        if reasoning:
-            self.reasoning_history.append(reasoning)
-        if action:
-            self.action_history.append(action)
-        if observation:
-            self.observation_history.append(observation)
-        
         # Update cognitive state
         self.cognitive_state.current_task = task
-        self.cognitive_state.context_history.append(f"R: {reasoning} A: {action} O: {observation}")
+        if reasoning or action or observation:
+            context_entry = f"Task: {task}"
+            if reasoning:
+                context_entry += f" | Reasoning: {reasoning}"
+            if action:
+                context_entry += f" | Action: {action}"
+            if observation:
+                context_entry += f" | Observation: {observation}"
+            self.cognitive_state.context_history.append(context_entry)
         
-        # Calculate confidence based on completed actions
-        if len(self.action_history) > 0:
-            successful_actions = len([obs for obs in self.observation_history if "success" in obs.lower()])
-            self.cognitive_state.confidence_score = successful_actions / len(self.action_history)
+        # Simple confidence based on context history length
+        self.cognitive_state.confidence_score = min(1.0, len(self.cognitive_state.context_history) * 0.1)
         
         return {
             "current_task": self.cognitive_state.current_task,
             "confidence": self.cognitive_state.confidence_score,
-            "react_cycle_count": len(self.reasoning_history),
-            "context_depth": len(self.cognitive_state.context_history)
+            "context_entries": len(self.cognitive_state.context_history)
         }
 
     def get_status(self) -> Dict[str, Any]:
@@ -254,10 +248,9 @@ class CognitiveMemorySystem:
             })
         
         base_status.update({
-            "react_metrics": {
-                "reasoning_steps": len(self.reasoning_history),
-                "actions_taken": len(self.action_history),
-                "observations_made": len(self.observation_history)
+            "cognitive_metrics": {
+                "has_cognitive_state": self.cognitive_state is not None,
+                "context_history_length": len(self.cognitive_state.context_history) if self.cognitive_state else 0
             }
         })
         
