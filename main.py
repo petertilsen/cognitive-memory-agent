@@ -10,7 +10,7 @@ sys.path.insert(0, str(src_path))
 
 from dotenv import load_dotenv
 from src import CognitiveMemoryAgent
-from src.utils.logging_config import get_logger
+from config.settings import get_logger
 
 # Initialize logging
 logger = get_logger("main")

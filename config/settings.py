@@ -1,8 +1,11 @@
 """Configuration settings for Cognitive Memory Agent."""
 
 import os
+import logging
+import logging.config
 from dataclasses import dataclass
-from typing import Optional
+from pathlib import Path
+from typing import Optional, Dict, Any
 
 
 @dataclass
@@ -26,12 +29,125 @@ class ModelConfig:
 
 
 @dataclass
+class LoggingConfig:
+    """Logging configuration."""
+    level: str = "INFO"
+    log_dir: str = "logs"
+    enable_file_logging: bool = True
+    enable_console_logging: bool = True
+
+
+@dataclass
 class AppConfig:
     """Application configuration."""
     memory: MemoryConfig
     model: ModelConfig
+    logging: LoggingConfig
     debug: bool = False
-    log_level: str = "INFO"
+
+
+def setup_logging(config: LoggingConfig) -> None:
+    """Setup logging configuration."""
+    
+    # Create logs directory
+    if config.enable_file_logging:
+        Path(config.log_dir).mkdir(exist_ok=True)
+    
+    # Logging configuration
+    log_config: Dict[str, Any] = {
+        "version": 1,
+        "disable_existing_loggers": False,
+        "formatters": {
+            "detailed": {
+                "format": "%(asctime)s - %(name)s - %(levelname)s - %(funcName)s:%(lineno)d - %(message)s",
+                "datefmt": "%Y-%m-%d %H:%M:%S"
+            },
+            "simple": {
+                "format": "%(levelname)s - %(name)s - %(message)s"
+            },
+            "json": {
+                "()": "pythonjsonlogger.jsonlogger.JsonFormatter",
+                "format": "%(asctime)s %(name)s %(levelname)s %(funcName)s %(lineno)d %(message)s"
+            }
+        },
+        "handlers": {},
+        "loggers": {
+            "src": {
+                "level": config.level,
+                "handlers": [],
+                "propagate": False
+            },
+            "strands": {
+                "level": "WARNING",
+                "handlers": [],
+                "propagate": False
+            }
+        },
+        "root": {
+            "level": config.level,
+            "handlers": []
+        }
+    }
+    
+    # Console handler
+    if config.enable_console_logging:
+        log_config["handlers"]["console"] = {
+            "class": "logging.StreamHandler",
+            "level": config.level,
+            "formatter": "simple",
+            "stream": "ext://sys.stdout"
+        }
+        log_config["loggers"]["src"]["handlers"].append("console")
+        log_config["loggers"]["strands"]["handlers"].append("console")
+        log_config["root"]["handlers"].append("console")
+    
+    # File handlers
+    if config.enable_file_logging:
+        # Main application log
+        log_config["handlers"]["file"] = {
+            "class": "logging.handlers.RotatingFileHandler",
+            "level": config.level,
+            "formatter": "detailed",
+            "filename": f"{config.log_dir}/cognitive_memory_agent.log",
+            "maxBytes": 10485760,  # 10MB
+            "backupCount": 5
+        }
+        
+        # Error log
+        log_config["handlers"]["error_file"] = {
+            "class": "logging.handlers.RotatingFileHandler",
+            "level": "ERROR",
+            "formatter": "detailed",
+            "filename": f"{config.log_dir}/errors.log",
+            "maxBytes": 10485760,  # 10MB
+            "backupCount": 3
+        }
+        
+        # Memory operations log
+        log_config["handlers"]["memory_file"] = {
+            "class": "logging.handlers.RotatingFileHandler",
+            "level": "DEBUG",
+            "formatter": "json",
+            "filename": f"{config.log_dir}/memory_operations.log",
+            "maxBytes": 10485760,  # 10MB
+            "backupCount": 5
+        }
+        
+        log_config["loggers"]["src"]["handlers"].extend(["file", "error_file"])
+        log_config["loggers"]["src.core.memory_system"] = {
+            "level": "DEBUG",
+            "handlers": ["memory_file"],
+            "propagate": False
+        }
+        log_config["root"]["handlers"].extend(["file", "error_file"])
+    
+    # Apply configuration
+    logging.config.dictConfig(log_config)
+
+
+def get_logger(name: str) -> logging.Logger:
+    """Get a logger instance for the given name."""
+    return logging.getLogger(f"src.{name}")
 
 
 def load_config() -> AppConfig:
@@ -43,11 +159,24 @@ def load_config() -> AppConfig:
         region=os.getenv("AWS_REGION", "us-east-1")
     )
     
+    logging_config = LoggingConfig(
+        level=os.getenv("LOG_LEVEL", "INFO"),
+        enable_file_logging=os.getenv("ENABLE_FILE_LOGGING", "true").lower() == "true",
+        enable_console_logging=os.getenv("ENABLE_CONSOLE_LOGGING", "true").lower() == "true"
+    )
+    
     app_config = AppConfig(
         memory=memory_config,
         model=model_config,
-        debug=os.getenv("DEBUG", "false").lower() == "true",
-        log_level=os.getenv("LOG_LEVEL", "INFO")
+        logging=logging_config,
+        debug=os.getenv("DEBUG", "false").lower() == "true"
     )
     
+    # Setup logging
+    setup_logging(logging_config)
+    
     return app_config
+
+
+# Initialize configuration on import
+config = load_config()

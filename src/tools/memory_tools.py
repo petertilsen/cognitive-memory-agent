@@ -4,7 +4,7 @@ import json
 from typing import Optional
 from strands import tool
 from ..core.memory_system import CognitiveMemorySystem
-from ..utils.logging_config import get_logger
+from ...config.settings import get_logger
 
 logger = get_logger("tools.memory_tools")
 

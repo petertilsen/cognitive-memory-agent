@@ -13,7 +13,7 @@ from ..tools.memory_tools import (
     update_cognitive_state,
     search_similar_memories
 )
-from ..utils.logging_config import get_logger
+from ...config.settings import get_logger
 
 logger = get_logger("core.agent")
 
