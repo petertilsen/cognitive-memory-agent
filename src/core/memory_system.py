@@ -6,7 +6,7 @@ from typing import List, Dict, Optional, Any, Tuple
 import numpy as np
 
 from ..models.memory import MemoryItem, CognitiveState
-from .vector_store import VectorStore
+from ..utils.vector_store import VectorStore
 from ...config.settings import get_logger
 
 logger = get_logger("core.memory_system")
