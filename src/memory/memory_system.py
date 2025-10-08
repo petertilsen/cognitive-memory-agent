@@ -1,5 +1,6 @@
 """Core cognitive memory system implementation."""
 
+import os
 import time
 from collections import deque
 from typing import List, Dict, Optional, Any, Tuple
@@ -24,12 +25,21 @@ class CognitiveMemorySystem:
         self.episodic_buffer = deque(maxlen=256)
         self.semantic_memory: Dict[str, MemoryItem] = {}
         
-        # Vector storage for semantic search
+        # Vector storage with ChromaDB
         try:
-            self.vector_store = VectorStore(embedding_model)
-            logger.info(f"Vector store initialized successfully with {self.vector_store.embedding_dim} dimensions")
+            chroma_host = os.getenv("CHROMA_HOST", "localhost")
+            chroma_port = int(os.getenv("CHROMA_PORT", "8000"))
+            collection_name = os.getenv("CHROMA_COLLECTION", "cognitive_memory")
+            
+            self.vector_store = VectorStore(
+                embedding_model=embedding_model,
+                chroma_host=chroma_host,
+                chroma_port=chroma_port,
+                collection_name=collection_name
+            )
+            logger.info(f"ChromaDB vector store initialized: {chroma_host}:{chroma_port}")
         except Exception as e:
-            logger.error(f"Failed to initialize vector store: {e}")
+            logger.error(f"Failed to initialize ChromaDB vector store: {e}")
             raise
         
         # Cognitive state tracking
