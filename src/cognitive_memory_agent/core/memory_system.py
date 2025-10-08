@@ -7,12 +7,17 @@ import numpy as np
 
 from ..models.memory import MemoryItem, CognitiveState
 from .vector_store import VectorStore
+from ..utils.logging_config import get_logger
+
+logger = get_logger("core.memory_system")
 
 
 class CognitiveMemorySystem:
     """Multi-layered cognitive memory system with vector search and ReAct integration."""
     
     def __init__(self, embedding_model: str = "all-MiniLM-L6-v2"):
+        logger.info(f"Initializing CognitiveMemorySystem with embedding_model: {embedding_model}")
+        
         # Layered memory buffers
         self.immediate_buffer = deque(maxlen=8)
         self.working_buffer = deque(maxlen=64)
@@ -20,7 +25,12 @@ class CognitiveMemorySystem:
         self.semantic_memory: Dict[str, MemoryItem] = {}
         
         # Vector storage for semantic search
-        self.vector_store = VectorStore(embedding_model)
+        try:
+            self.vector_store = VectorStore(embedding_model)
+            logger.info(f"Vector store initialized successfully with {self.vector_store.embedding_dim} dimensions")
+        except Exception as e:
+            logger.error(f"Failed to initialize vector store: {e}")
+            raise
         
         # Cognitive state tracking
         self.cognitive_state: Optional[CognitiveState] = None
@@ -35,78 +45,103 @@ class CognitiveMemorySystem:
         self.reasoning_history: List[str] = []
         self.action_history: List[str] = []
         self.observation_history: List[str] = []
+        
+        logger.debug("CognitiveMemorySystem initialization complete")
 
     def add_memory(self, content: str, context: str = "", source: str = "user", 
                    memory_type: str = "factual") -> Dict[str, Any]:
         """Add new memory item with enhanced metadata."""
-        # Generate embedding and add to vector store
-        vector_id = self.vector_store.add(content, {
-            "context": context,
-            "source": source,
-            "memory_type": memory_type,
-            "timestamp": time.time()
-        })
+        logger.debug(f"Adding memory: type={memory_type}, source={source}, content_length={len(content)}")
         
-        # Create memory item
-        memory_item = MemoryItem(
-            content=content,
-            embedding=self.vector_store.vectors[vector_id],
-            task_context=context,
-            source=source,
-            confidence=1.0 if source == "user" else 0.8
-        )
-        
-        # Add to appropriate buffers
-        self.immediate_buffer.append(memory_item)
-        self.working_buffer.append(memory_item)
-        
-        # Check for similar existing memories
-        similar_memories = self._find_similar_memories(content)
-        
-        result = {
-            "memory_id": vector_id,
-            "content_preview": content[:50] + "..." if len(content) > 50 else content,
-            "similar_count": len(similar_memories),
-            "buffer_sizes": self.get_status()
-        }
-        
-        return result
+        try:
+            # Generate embedding and add to vector store
+            vector_id = self.vector_store.add(content, {
+                "context": context,
+                "source": source,
+                "memory_type": memory_type,
+                "timestamp": time.time()
+            })
+            
+            # Create memory item
+            memory_item = MemoryItem(
+                content=content,
+                embedding=self.vector_store.vectors[vector_id],
+                task_context=context,
+                source=source,
+                confidence=1.0 if source == "user" else 0.8
+            )
+            
+            # Add to appropriate buffers
+            self.immediate_buffer.append(memory_item)
+            self.working_buffer.append(memory_item)
+            
+            # Check for similar existing memories
+            similar_memories = self._find_similar_memories(content)
+            
+            result = {
+                "memory_id": vector_id,
+                "content_preview": content[:50] + "..." if len(content) > 50 else content,
+                "similar_count": len(similar_memories),
+                "buffer_sizes": self.get_status()
+            }
+            
+            logger.info(f"Memory added successfully: id={vector_id}, similar_count={len(similar_memories)}")
+            
+            if similar_memories:
+                logger.debug(f"Found {len(similar_memories)} similar memories with similarities: {[s for s, _ in similar_memories[:3]]}")
+            
+            return result
+            
+        except Exception as e:
+            logger.error(f"Failed to add memory: {e}", exc_info=True)
+            raise
 
     def retrieve_relevant(self, query: str, top_k: int = 3, 
                          include_context: bool = True) -> Dict[str, Any]:
         """Enhanced retrieval with context and reasoning."""
-        # Vector-based semantic search
-        vector_results = self.vector_store.search(query, top_k * 2, self.similarity_threshold)
+        logger.debug(f"Retrieving memories for query: '{query[:100]}...', top_k={top_k}")
         
-        # Buffer-based contextual search
-        buffer_results = self._search_buffers(query)
-        
-        # Combine and rank results
-        combined_results = self._combine_search_results(vector_results, buffer_results, top_k)
-        
-        # Update access patterns
-        for _, _, content, _ in combined_results:
-            self._update_access_pattern(content)
-        
-        result = {
-            "query": query,
-            "results": [
-                {
-                    "content": content,
-                    "similarity": similarity,
-                    "metadata": metadata,
-                    "source_buffer": self._identify_source_buffer(content)
-                }
-                for _, similarity, content, metadata in combined_results
-            ],
-            "total_found": len(combined_results),
-            "search_strategy": "hybrid_vector_buffer"
-        }
-        
-        return result
+        try:
+            # Vector-based semantic search
+            vector_results = self.vector_store.search(query, top_k * 2, self.similarity_threshold)
+            logger.debug(f"Vector search found {len(vector_results)} results")
+            
+            # Buffer-based contextual search
+            buffer_results = self._search_buffers(query)
+            logger.debug(f"Buffer search found {len(buffer_results)} results")
+            
+            # Combine and rank results
+            combined_results = self._combine_search_results(vector_results, buffer_results, top_k)
+            
+            # Update access patterns
+            for _, _, content, _ in combined_results:
+                self._update_access_pattern(content)
+            
+            result = {
+                "query": query,
+                "results": [
+                    {
+                        "content": content,
+                        "similarity": similarity,
+                        "metadata": metadata,
+                        "source_buffer": self._identify_source_buffer(content)
+                    }
+                    for _, similarity, content, metadata in combined_results
+                ],
+                "total_found": len(combined_results),
+                "search_strategy": "hybrid_vector_buffer"
+            }
+            
+            logger.info(f"Retrieved {len(combined_results)} relevant memories for query")
+            return result
+            
+        except Exception as e:
+            logger.error(f"Failed to retrieve memories: {e}", exc_info=True)
+            raise
 
     def consolidate_memory(self) -> Dict[str, Any]:
         """Enhanced memory consolidation with forgetting curves and promotion."""
+        logger.info("Starting memory consolidation")
         self.current_time += 1
         
         consolidation_stats = {
@@ -118,38 +153,47 @@ class CognitiveMemorySystem:
             "operations": []
         }
         
-        # Apply forgetting curve to working buffer
-        forgotten_count = 0
-        for item in list(self.working_buffer):
-            item.decay(self.current_time)
-            if item.relevance_score < self.attention_threshold:
-                self.working_buffer.remove(item)
-                forgotten_count += 1
-        
-        consolidation_stats["operations"].append(f"Forgot {forgotten_count} low-relevance items")
-        
-        # Promote high-value items to episodic memory
-        promoted_count = 0
-        for item in list(self.working_buffer):
-            if (item.access_count > 2 and 
-                item.relevance_score > self.consolidation_threshold):
-                if not any(id(item) == id(e) for e in self.episodic_buffer):
-                    self.episodic_buffer.append(item)
-                    promoted_count += 1
-        
-        consolidation_stats["operations"].append(f"Promoted {promoted_count} items to episodic memory")
-        
-        # Semantic clustering and organization
-        cluster_count = self._organize_semantic_clusters()
-        consolidation_stats["operations"].append(f"Organized {cluster_count} semantic clusters")
-        
-        consolidation_stats["after_sizes"] = {
-            "immediate": len(self.immediate_buffer),
-            "working": len(self.working_buffer),
-            "episodic": len(self.episodic_buffer)
-        }
-        
-        return consolidation_stats
+        try:
+            # Apply forgetting curve to working buffer
+            forgotten_count = 0
+            for item in list(self.working_buffer):
+                item.decay(self.current_time)
+                if item.relevance_score < self.attention_threshold:
+                    self.working_buffer.remove(item)
+                    forgotten_count += 1
+            
+            consolidation_stats["operations"].append(f"Forgot {forgotten_count} low-relevance items")
+            logger.debug(f"Applied forgetting curve: removed {forgotten_count} items")
+            
+            # Promote high-value items to episodic memory
+            promoted_count = 0
+            for item in list(self.working_buffer):
+                if (item.access_count > 2 and 
+                    item.relevance_score > self.consolidation_threshold):
+                    if not any(id(item) == id(e) for e in self.episodic_buffer):
+                        self.episodic_buffer.append(item)
+                        promoted_count += 1
+            
+            consolidation_stats["operations"].append(f"Promoted {promoted_count} items to episodic memory")
+            logger.debug(f"Promoted {promoted_count} items to episodic memory")
+            
+            # Semantic clustering and organization
+            cluster_count = self._organize_semantic_clusters()
+            consolidation_stats["operations"].append(f"Organized {cluster_count} semantic clusters")
+            logger.debug(f"Organized {cluster_count} semantic clusters")
+            
+            consolidation_stats["after_sizes"] = {
+                "immediate": len(self.immediate_buffer),
+                "working": len(self.working_buffer),
+                "episodic": len(self.episodic_buffer)
+            }
+            
+            logger.info(f"Memory consolidation complete: {consolidation_stats}")
+            return consolidation_stats
+            
+        except Exception as e:
+            logger.error(f"Memory consolidation failed: {e}", exc_info=True)
+            raise
 
     def update_cognitive_state(self, task: str, reasoning: str = "", 
                               action: str = "", observation: str = "") -> Dict[str, Any]:

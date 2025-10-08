@@ -5,6 +5,9 @@ numpy>=1.24.0
 sentence-transformers>=2.2.0
 python-dotenv>=1.0.0
 
+# Logging dependencies
+python-json-logger>=2.0.0
+
 # Development dependencies (optional)
 pytest>=7.0.0
 black>=23.0.0

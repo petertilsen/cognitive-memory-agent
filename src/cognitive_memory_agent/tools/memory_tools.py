@@ -4,9 +4,13 @@ import json
 from typing import Optional
 from strands import tool
 from ..core.memory_system import CognitiveMemorySystem
+from ..utils.logging_config import get_logger
+
+logger = get_logger("tools.memory_tools")
 
 # Global memory system instance
 _memory_system = CognitiveMemorySystem()
+logger.info("Memory system initialized for tools")
 
 
 @tool
@@ -21,8 +25,15 @@ def add_to_memory(content: str, context: str = "", memory_type: str = "factual")
     Returns:
         JSON string with memory addition results and similar content detection
     """
-    result = _memory_system.add_memory(content, context, "agent", memory_type)
-    return json.dumps(result, indent=2)
+    logger.debug(f"Tool called: add_to_memory, type={memory_type}, content_length={len(content)}")
+    
+    try:
+        result = _memory_system.add_memory(content, context, "agent", memory_type)
+        logger.info(f"Memory added via tool: id={result.get('memory_id')}")
+        return json.dumps(result, indent=2)
+    except Exception as e:
+        logger.error(f"add_to_memory tool failed: {e}")
+        return json.dumps({"error": str(e), "success": False})
 
 
 @tool
@@ -37,8 +48,15 @@ def retrieve_from_memory(query: str, max_results: int = 3, include_context: bool
     Returns:
         JSON string with retrieved memories, similarity scores, and metadata
     """
-    result = _memory_system.retrieve_relevant(query, max_results, include_context)
-    return json.dumps(result, indent=2)
+    logger.debug(f"Tool called: retrieve_from_memory, query='{query[:50]}...', max_results={max_results}")
+    
+    try:
+        result = _memory_system.retrieve_relevant(query, max_results, include_context)
+        logger.info(f"Retrieved {result.get('total_found', 0)} memories via tool")
+        return json.dumps(result, indent=2)
+    except Exception as e:
+        logger.error(f"retrieve_from_memory tool failed: {e}")
+        return json.dumps({"error": str(e), "success": False})
 
 
 @tool
@@ -48,8 +66,15 @@ def consolidate_memory() -> str:
     Returns:
         JSON string with detailed consolidation statistics and operations performed
     """
-    result = _memory_system.consolidate_memory()
-    return json.dumps(result, indent=2)
+    logger.debug("Tool called: consolidate_memory")
+    
+    try:
+        result = _memory_system.consolidate_memory()
+        logger.info("Memory consolidation completed via tool")
+        return json.dumps(result, indent=2)
+    except Exception as e:
+        logger.error(f"consolidate_memory tool failed: {e}")
+        return json.dumps({"error": str(e), "success": False})
 
 
 @tool

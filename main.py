@@ -10,12 +10,17 @@ sys.path.insert(0, str(src_path))
 
 from dotenv import load_dotenv
 from cognitive_memory_agent import CognitiveMemoryAgent
+from cognitive_memory_agent.utils.logging_config import get_logger
+
+# Initialize logging
+logger = get_logger("main")
 
 
 def main():
     """Run the cognitive memory agent demo."""
     # Load environment variables
     load_dotenv()
+    logger.info("Starting Cognitive Memory Agent application")
     
     print("🧠 Cognitive Memory Agent - Strands SDK Integration")
     print("=" * 50)
@@ -24,21 +29,29 @@ def main():
     try:
         agent = CognitiveMemoryAgent()
         print("✓ Agent initialized successfully")
+        logger.info("Agent initialized successfully")
     except Exception as e:
         print(f"❌ Failed to initialize agent: {e}")
+        logger.error(f"Failed to initialize agent: {e}", exc_info=True)
         return
     
     # Interactive demo
     print("\nStarting interactive demo...")
     print("Type 'quit' to exit, 'status' to check memory status")
     print("-" * 50)
+    logger.info("Starting interactive demo session")
+    
+    interaction_count = 0
     
     while True:
         try:
             user_input = input("\nYou: ").strip()
+            interaction_count += 1
+            logger.debug(f"User interaction #{interaction_count}: {user_input[:100]}...")
             
             if user_input.lower() in ['quit', 'exit']:
                 print("Goodbye!")
+                logger.info(f"Session ended by user after {interaction_count} interactions")
                 break
             
             if user_input.lower() == 'status':
@@ -52,12 +65,15 @@ def main():
             # Process through cognitive agent
             response = agent(user_input)
             print(f"Agent: {response}")
+            logger.debug(f"Agent response length: {len(response)}")
             
         except KeyboardInterrupt:
             print("\nGoodbye!")
+            logger.info(f"Session interrupted by user after {interaction_count} interactions")
             break
         except Exception as e:
             print(f"Error: {e}")
+            logger.error(f"Error during interaction #{interaction_count}: {e}", exc_info=True)
 
 
 if __name__ == "__main__":

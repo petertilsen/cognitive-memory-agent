@@ -13,6 +13,9 @@ from ..tools.memory_tools import (
     update_cognitive_state,
     search_similar_memories
 )
+from ..utils.logging_config import get_logger
+
+logger = get_logger("core.agent")
 
 
 class CognitiveMemoryAgent:
@@ -29,36 +32,64 @@ class CognitiveMemoryAgent:
         self.region = region or os.getenv("AWS_REGION", "us-east-1")
         self.embedding_model = embedding_model
         
-        # Configure Bedrock model
-        self.model = BedrockModel(
-            model_id=self.model_id,
-            region=self.region
-        )
+        logger.info(f"Initializing CognitiveMemoryAgent with model: {self.model_id}, region: {self.region}")
+        
+        try:
+            # Configure Bedrock model
+            self.model = BedrockModel(
+                model_id=self.model_id,
+                region=self.region
+            )
+            logger.info("Bedrock model configured successfully")
+        except Exception as e:
+            logger.error(f"Failed to configure Bedrock model: {e}")
+            raise
         
         # Enhanced system prompt for ReAct and cognitive behavior
         self.system_prompt = system_prompt or self._get_enhanced_system_prompt()
         
-        # Create Strands agent with enhanced memory tools
-        self.agent = Agent(
-            model=self.model,
-            tools=[
-                add_to_memory, 
-                retrieve_from_memory, 
-                consolidate_memory, 
-                get_memory_status,
-                update_cognitive_state,
-                search_similar_memories
-            ],
-            system_prompt=self.system_prompt
-        )
+        try:
+            # Create Strands agent with enhanced memory tools
+            self.agent = Agent(
+                model=self.model,
+                tools=[
+                    add_to_memory, 
+                    retrieve_from_memory, 
+                    consolidate_memory, 
+                    get_memory_status,
+                    update_cognitive_state,
+                    search_similar_memories
+                ],
+                system_prompt=self.system_prompt
+            )
+            logger.info("Strands agent created successfully with 6 memory tools")
+        except Exception as e:
+            logger.error(f"Failed to create Strands agent: {e}")
+            raise
     
     def __call__(self, message: str) -> str:
         """Process message through the cognitive agent with ReAct pattern."""
-        return self.agent(message)
+        logger.debug(f"Processing message: {message[:100]}...")
+        
+        try:
+            response = self.agent(message)
+            logger.info(f"Message processed successfully, response length: {len(response)}")
+            return response
+        except Exception as e:
+            logger.error(f"Failed to process message: {e}", exc_info=True)
+            raise
     
     async def invoke_async(self, message: str) -> str:
         """Async processing of message."""
-        return await self.agent.invoke_async(message)
+        logger.debug(f"Processing async message: {message[:100]}...")
+        
+        try:
+            response = await self.agent.invoke_async(message)
+            logger.info(f"Async message processed successfully, response length: {len(response)}")
+            return response
+        except Exception as e:
+            logger.error(f"Failed to process async message: {e}", exc_info=True)
+            raise
     
     def _get_enhanced_system_prompt(self) -> str:
         """Get enhanced system prompt for cognitive behavior and ReAct patterns."""
