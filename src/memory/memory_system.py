@@ -518,6 +518,44 @@ class CognitiveMemorySystem:
                 return buffer_name
         return "vector_store"
 
+    def consolidate_memory(self):
+        """
+        Memory consolidation and organization.
+        
+        Implements controlled memory management through:
+        1. Temporal decay (Ebbinghaus forgetting curve)
+        2. Selective consolidation to episodic memory
+        3. Attention threshold filtering
+        4. Semantic clustering organization
+        """
+        logger.debug("Starting memory consolidation")
+        self.current_time += 1
+
+        # Apply forgetting curve to all buffers
+        for buffer in [self.immediate_buffer, self.working_buffer, self.episodic_buffer]:
+            for item in buffer:
+                item.decay(self.current_time)
+
+        # Remove low relevance items from working buffer
+        original_size = len(self.working_buffer)
+        self.working_buffer = deque(
+            [item for item in self.working_buffer if item.relevance_score > self.attention_threshold],
+            maxlen=self.working_buffer.maxlen,
+        )
+        removed_count = original_size - len(self.working_buffer)
+
+        # Promote important items to episodic memory
+        promoted_count = 0
+        for item in self.working_buffer:
+            if item.access_count > 2 and not any(id(item) == id(e) for e in self.episodic_buffer):
+                self.episodic_buffer.append(item)
+                promoted_count += 1
+
+        # Organize semantic clusters
+        cluster_count = self._organize_semantic_clusters()
+
+        logger.debug(f"Memory consolidation complete: removed {removed_count}, promoted {promoted_count}, {cluster_count} clusters")
+
     def _organize_semantic_clusters(self) -> int:
         """Organize memories into semantic clusters."""
         clusters = {}
