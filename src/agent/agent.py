@@ -7,7 +7,7 @@ from strands.models import BedrockModel
 
 from ...config.settings import get_logger
 
-logger = get_logger("core.agent")
+logger = get_logger("agent.agent")
 
 
 class CognitiveMemoryAgent:
