@@ -23,6 +23,32 @@ from src.agent.librarian_agent import LibrarianAgent
 from src.memory.analyzer import MemoryAnalyzer
 
 
+def flush_chromadb(host: str = "localhost", port: int = 8000):
+    """Flush ChromaDB collections for fresh start."""
+    try:
+        import chromadb
+        
+        print("🗑️  Flushing ChromaDB collections...")
+        
+        # Connect to ChromaDB
+        client = chromadb.HttpClient(host=host, port=port)
+        
+        # Get collection name from environment
+        collection_name = os.getenv("CHROMA_COLLECTION", "cognitive_memory")
+        
+        # Try to delete the specific collection instead of full reset
+        try:
+            client.delete_collection(name=collection_name)
+            print(f"✅ Deleted collection '{collection_name}' - starting fresh")
+        except Exception:
+            # Collection might not exist, which is fine
+            print(f"✅ Collection '{collection_name}' cleared - starting fresh")
+        
+    except Exception as e:
+        print(f"⚠️  ChromaDB flush failed: {e}")
+        print("   Continuing with existing data...")
+
+
 def check_prerequisites():
     """Check if prerequisites are met."""
     print("🔍 Checking prerequisites...")
@@ -52,6 +78,8 @@ def check_prerequisites():
         
         if connected:
             print(f"✅ ChromaDB server accessible at {chroma_host}:{chroma_port}")
+
+            flush_chromadb(chroma_host, chroma_port)
         else:
             print(f"❌ ChromaDB server not responding at {chroma_host}:{chroma_port}")
             return False

@@ -39,8 +39,7 @@ class LibrarianAgent:
         try:
             # Configure Bedrock model
             self.model = BedrockModel(
-                model_id=self.model_id,
-                region=self.region
+                model_id=self.model_id
             )
             logger.info("Bedrock model configured successfully")
         except Exception as e:
