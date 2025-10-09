@@ -214,7 +214,7 @@ class CognitiveMemorySystem:
             else:
                 logger.debug(f"Active retrieval for: {subtask}")
                 new_info = self._active_retrieval(subtask)
-                insight = self._process_new_information(new_info)
+                insight = self._process_new_information(new_info, llm_interface)
 
             insights.append(insight)
             
@@ -263,11 +263,25 @@ class CognitiveMemorySystem:
             return [text for _, _, text in results]
         return []
 
-    def _process_new_information(self, info: List[str]) -> str:
-        """Process new information."""
-        if info:
-            return f"Processed: {info[0][:100]}"
-        return "No new information found"
+    def _process_new_information(self, info: List[str], llm_interface=None) -> str:
+        """Process new information using LLM analysis."""
+        if not info:
+            return "No new information found"
+        
+        if llm_interface:
+            # Combine multiple pieces of information
+            combined_info = " | ".join(info[:3])  # Use top 3 results
+            
+            analysis_prompt = f"""
+            Analyze this information and extract key insights:
+            {combined_info}
+            
+            Provide a concise analysis focusing on the main points:
+            """
+            return llm_interface.complete(analysis_prompt)
+        else:
+            # Improved fallback - at least return actual content
+            return f"Retrieved: {info[0][:200]}..." if info else "No information"
 
     def _update_working_buffer(self, content: str, source: str = "generation"):
         """Update working memory buffer."""

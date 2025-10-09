@@ -7,7 +7,7 @@ from strands.models import BedrockModel
 
 from config.settings import get_logger
 from ..memory.memory_system import CognitiveMemorySystem
-from .tools.book_repository import search_gutenberg_books, fetch_book_content, search_openlibrary_books
+from .tools.book_repository import fetch_book_content, search_openlibrary_books
 
 logger = get_logger("agent.librarian_agent")
 
@@ -53,23 +53,55 @@ class LibrarianAgent:
             # Create Strands agent with librarian tools
             self.agent = Agent(
                 model=self.model,
-                tools=[search_gutenberg_books, fetch_book_content, search_openlibrary_books],
+                tools=[fetch_book_content, search_openlibrary_books],
                 system_prompt=self.system_prompt
             )
-            logger.info("Librarian agent created successfully with book repository tools")
+            logger.info("Librarian agent created successfully with Open Library tools")
         except Exception as e:
             logger.error(f"Failed to create librarian agent: {e}")
             raise
     
     def research(self, query: str, documents: List[str] = None) -> str:
-        """Main research method using cognitive memory system."""
+        """Main research method using cognitive memory system with book repository tools."""
         logger.info(f"Starting research task: {query[:100]}...")
         
         try:
+            # If no documents provided, use book repository tools to gather information
+            if not documents:
+                logger.info("No documents provided, using book repository tools to gather information")
+                
+                # Use the agent with tools to research the topic
+                research_prompt = f"""
+                Research this topic using Open Library: {query}
+                
+                Please:
+                1. Search Open Library for relevant books on this topic
+                2. Fetch content from the most relevant books
+                3. Extract key information to answer the question
+                
+                Focus on finding authoritative sources and comprehensive information.
+                """
+                
+                # Let the agent use its tools to gather information
+                tool_response = self.agent(research_prompt)
+                
+                # Extract any book content that was fetched
+                # Convert AgentResult to string if needed
+                if hasattr(tool_response, 'content'):
+                    response_text = tool_response.content
+                elif hasattr(tool_response, 'text'):
+                    response_text = tool_response.text
+                else:
+                    response_text = str(tool_response)
+                
+                documents = [response_text] if response_text else []
+                
+                logger.info(f"Gathered {len(documents)} documents using book repository tools")
+            
             # Use cognitive memory system to process the research task
             result = self.memory_system.process_task(
                 task=query,
-                documents=documents or [],
+                documents=documents,
                 llm_interface=self._create_llm_interface()
             )
             
