@@ -227,7 +227,7 @@ class CognitiveMemorySystem:
             self._update_working_buffer(insight, subtask)
 
             # Consolidate memory after each subtask
-            self.consolidate_memory()
+            self._consolidate_memory()
 
         return insights
 
@@ -518,7 +518,7 @@ class CognitiveMemorySystem:
                 return buffer_name
         return "vector_store"
 
-    def consolidate_memory(self):
+    def _consolidate_memory(self):
         """
         Memory consolidation and organization.
         
