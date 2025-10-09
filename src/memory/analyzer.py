@@ -43,12 +43,14 @@ class MemoryAnalyzer:
         }
     
     def track_memory_reuse(self) -> Dict[str, Any]:
-        """Track memory reuse patterns across all buffers."""
+        """Track memory reuse patterns based on actual cognitive behavior."""
         reuse_stats = {
             "high_access_items": [],
             "total_accesses": 0,
             "unique_items": 0,
-            "reuse_rate": 0.0
+            "reuse_rate": 0.0,
+            "reuse_operations": 0,
+            "new_info_operations": 0
         }
         
         all_items = (
@@ -72,7 +74,32 @@ class MemoryAnalyzer:
                 for item in all_items if item.access_count > 1
             ]
             
-            reuse_rate = len(high_access_items) / unique_items if unique_items > 0 else 0.0
+            # Calculate reuse based on cognitive operations
+            if hasattr(self.memory_system, 'operation_logs'):
+                reuse_ops = sum(1 for op in self.memory_system.operation_logs if 'reuse' in op.get('type', '').lower())
+                new_info_ops = sum(1 for op in self.memory_system.operation_logs if 'new_info' in op.get('type', '').lower())
+                total_ops = reuse_ops + new_info_ops
+                
+                # Calculate cross-task reuse rate (more meaningful metric)
+                if hasattr(self.memory_system, 'task_start_memory_size'):
+                    cross_task_reuse_rate = min(1.0, self.memory_system.task_start_memory_size / max(1, len(all_items)))
+                    reuse_stats.update({
+                        "cross_task_reuse_rate": cross_task_reuse_rate,
+                        "task_start_memory_size": self.memory_system.task_start_memory_size
+                    })
+                
+                reuse_rate = reuse_ops / total_ops if total_ops > 0 else 0.0
+                reuse_stats.update({
+                    "reuse_operations": reuse_ops,
+                    "new_info_operations": new_info_ops
+                })
+            else:
+                # Fallback: estimate based on source types
+                memory_sourced = sum(1 for item in all_items if item.source in ['memory_synthesis', 'reuse'])
+                new_sourced = sum(1 for item in all_items if item.source in ['generation', 'promotion', 'document'])
+                total_sourced = memory_sourced + new_sourced
+                
+                reuse_rate = memory_sourced / total_sourced if total_sourced > 0 else 0.0
             
             reuse_stats.update({
                 "high_access_items": high_access_items,

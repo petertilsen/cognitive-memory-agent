@@ -46,9 +46,13 @@ class CognitiveMemorySystem:
         self.cognitive_state: Optional[CognitiveState] = None
         self.current_time = 0
         
+        # Operation logging for reuse analysis
+        self.operation_logs = []
+        self.task_start_memory_size = 0  # Track memory size at task start
+        
         # Memory management parameters
         self.attention_threshold = 0.5
-        self.consolidation_threshold = 0.8
+        self.consolidation_threshold = 0.3
         self.similarity_threshold = 0.7
         
         logger.debug("CognitiveMemorySystem initialization complete")
@@ -65,6 +69,9 @@ class CognitiveMemorySystem:
         """
         logger.info(f"Processing task: {task[:100]}...")
         start_time = time.time()
+        
+        # Track memory size at task start for reuse analysis
+        self.task_start_memory_size = len(self.working_buffer)
         
         # Phase 1: Task understanding and planning
         subtasks = self._decompose_task(task, llm_interface)
@@ -211,10 +218,14 @@ class CognitiveMemorySystem:
             if existing_knowledge:
                 logger.debug(f"Reusing existing knowledge: {len(existing_knowledge)} items")
                 insight = self._synthesize_from_memory(existing_knowledge)
+                # Log reuse operation
+                self.operation_logs.append({"type": "memory_reuse", "subtask": subtask, "items_count": len(existing_knowledge)})
             else:
                 logger.debug(f"Active retrieval for: {subtask}")
                 new_info = self._active_retrieval(subtask)
                 insight = self._process_new_information(new_info, llm_interface)
+                # Log new information processing
+                self.operation_logs.append({"type": "new_info_processing", "subtask": subtask, "items_count": len(new_info)})
 
             insights.append(insight)
             

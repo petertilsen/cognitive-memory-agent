@@ -27,9 +27,7 @@ def flush_chromadb(host: str = "localhost", port: int = 8000):
     """Flush ChromaDB collections for fresh start."""
     try:
         import chromadb
-        
-        print("🗑️  Flushing ChromaDB collections...")
-        
+
         # Connect to ChromaDB
         client = chromadb.HttpClient(host=host, port=port)
         
@@ -79,7 +77,7 @@ def check_prerequisites():
         if connected:
             print(f"✅ ChromaDB server accessible at {chroma_host}:{chroma_port}")
 
-            flush_chromadb(chroma_host, chroma_port)
+            #flush_chromadb(chroma_host, chroma_port)
         else:
             print(f"❌ ChromaDB server not responding at {chroma_host}:{chroma_port}")
             return False
@@ -103,23 +101,16 @@ def check_prerequisites():
     return True
 
 
-def demo_basic_research():
+def demo_basic_research(librarian):
     """Demonstrate basic research capabilities."""
     print("\n" + "="*60)
     print("📚 BASIC RESEARCH DEMONSTRATION")
     print("="*60)
     
     try:
-        # Initialize LibrarianAgent
-        print("Initializing LibrarianAgent...")
-        librarian = LibrarianAgent()
-        print("✅ LibrarianAgent initialized successfully")
-        
         # Research queries
         queries = [
-            "What is machine learning and how does it work?",
-            "Tell me about neural networks and deep learning",
-            "How do transformers work in natural language processing?"
+            "What is machine learning and how does it work?"
         ]
         
         for i, query in enumerate(queries, 1):
@@ -200,8 +191,7 @@ def demo_progressive_research(librarian):
         progressive_queries = [
             "What are the basics of artificial intelligence?",
             "How do machine learning algorithms learn from data?",
-            "What makes deep learning different from traditional ML?",
-            "How do transformers revolutionize natural language processing?"
+            "What makes deep learning different from traditional ML?"
         ]
         
         analyzer = MemoryAnalyzer(librarian.memory_system)
@@ -210,11 +200,11 @@ def demo_progressive_research(librarian):
         for i, query in enumerate(progressive_queries, 1):
             print(f"\n--- Progressive Query {i} ---")
             print(f"Query: {query}")
-            
+
             # Generate report before processing
             if i > 1:
                 before_report = analyzer.generate_memory_report()
-            
+
             # Process query
             response = librarian.research(query)
             print(f"Response: {response[:150]}...")
@@ -253,24 +243,14 @@ def main():
     if not check_prerequisites():
         print("\n❌ Prerequisites not met. Please fix the issues above and try again.")
         return
-    
-    # Run demonstrations
-    librarian = demo_basic_research()
-    if librarian:
-        demo_memory_analysis(librarian)
-        demo_progressive_research(librarian)
-        
-        print("\n" + "="*60)
-        print("✅ DEMONSTRATION COMPLETE")
-        print("="*60)
-        print("Key Cognitive Memory Advantages Demonstrated:")
-        print("• Persistent memory across queries")
-        print("• Progressive knowledge building")
-        print("• Memory reuse and consolidation")
-        print("• Intelligent buffer management")
-        print("• Semantic clustering and organization")
-    else:
-        print("\n❌ Demo failed. Please check your configuration and try again.")
+
+    # Initialize LibrarianAgent
+    print("Initializing LibrarianAgent...")
+    librarian = LibrarianAgent()
+    print("✅ LibrarianAgent initialized successfully")
+
+    #demo_basic_research(librarian)
+    demo_progressive_research(librarian)
 
 
 if __name__ == "__main__":
