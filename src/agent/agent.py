@@ -20,7 +20,7 @@ class CognitiveMemoryAgent:
         system_prompt: Optional[str] = None,
         embedding_model: str = "all-MiniLM-L6-v2"
     ):
-        self.model_id = model_id or os.getenv("BEDROCK_MODEL", "anthropic.claude-3-haiku-20240307-v1:0")
+        self.model_id = model_id or os.getenv("MODEL", "anthropic.claude-3-haiku-20240307-v1:0")
         self.region = region or os.getenv("AWS_REGION", "us-east-1")
         self.embedding_model = embedding_model
         

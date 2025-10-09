@@ -16,7 +16,7 @@ logger = get_logger("core.memory_system")
 class CognitiveMemorySystem:
     """Multi-layered cognitive memory system with vector search and ReAct integration."""
     
-    def __init__(self, embedding_model: str = "all-MiniLM-L6-v2"):
+    def __init__(self, embedding_model: str = "amazon.titan-embed-text-v1"):
         logger.info(f"Initializing CognitiveMemorySystem with embedding_model: {embedding_model}")
         
         # Layered memory buffers

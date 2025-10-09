@@ -17,16 +17,17 @@ except ImportError:
     HAS_CHROMADB = False
 
 try:
-    from sentence_transformers import SentenceTransformer
-    HAS_EMBEDDINGS = True
+    import boto3
+    import json
+    HAS_BEDROCK = True
 except ImportError:
-    HAS_EMBEDDINGS = False
+    HAS_BEDROCK = False
 
 
 class VectorStore:
     """ChromaDB-based vector storage with persistence."""
     
-    def __init__(self, embedding_model: str = "all-MiniLM-L6-v2", 
+    def __init__(self, embedding_model: str = "amazon.titan-embed-text-v1", 
                  chroma_host: str = "localhost", chroma_port: int = 8000,
                  collection_name: str = "cognitive_memory"):
         
@@ -39,19 +40,20 @@ class VectorStore:
         self.embedding_model = embedding_model
         self.collection_name = collection_name
         
-        # Initialize embedding model
-        if HAS_EMBEDDINGS and embedding_model != "simple":
+        # Initialize Bedrock client for embeddings
+        if HAS_BEDROCK:
             try:
-                self.encoder = SentenceTransformer(embedding_model)
-                self.embedding_dim = self.encoder.get_sentence_embedding_dimension()
-                logger.info(f"Sentence transformer loaded: {embedding_model}, dim: {self.embedding_dim}")
+                region = os.getenv("AWS_REGION", "us-east-1")
+                self.bedrock_client = boto3.client('bedrock-runtime', region_name=region)
+                self.embedding_dim = 1536 if "titan" in embedding_model else 1024  # Titan: 1536, Cohere: 1024
+                logger.info(f"Bedrock embeddings initialized: {embedding_model}, dim: {self.embedding_dim}")
             except Exception as e:
-                logger.warning(f"Failed to load sentence transformer: {e}, using fallback")
-                self.encoder = None
+                logger.warning(f"Failed to initialize Bedrock client: {e}, using fallback")
+                self.bedrock_client = None
                 self.embedding_dim = 384
         else:
-            logger.info("Using simple hash-based embeddings")
-            self.encoder = None
+            logger.warning("Bedrock not available, using simple hash-based embeddings")
+            self.bedrock_client = None
             self.embedding_dim = 384
         
         # Initialize ChromaDB client
@@ -82,25 +84,52 @@ class VectorStore:
             )
 
     def embed(self, text: str) -> List[float]:
-        """Generate embedding for text."""
-        if self.encoder:
-            embedding = self.encoder.encode(text)
-            return embedding.tolist()
-        else:
-            # Fallback: simple hash-based embedding
-            import hashlib
-            hash_obj = hashlib.md5(text.encode())
-            hash_hex = hash_obj.hexdigest()
-            
-            vector = [
-                int(hash_hex[i:i+2], 16) / 255.0 
-                for i in range(0, min(len(hash_hex), self.embedding_dim * 2), 2)
-            ]
-            
-            if len(vector) < self.embedding_dim:
-                vector.extend([0.0] * (self.embedding_dim - len(vector)))
-            
-            return vector[:self.embedding_dim]
+        """Generate embedding for text using Bedrock."""
+        if self.bedrock_client:
+            try:
+                # Use Bedrock embedding model
+                if "titan" in self.embedding_model:
+                    body = json.dumps({"inputText": text})
+                elif "cohere" in self.embedding_model:
+                    body = json.dumps({"texts": [text], "input_type": "search_document"})
+                else:
+                    # Default to Titan format
+                    body = json.dumps({"inputText": text})
+                
+                response = self.bedrock_client.invoke_model(
+                    modelId=self.embedding_model,
+                    body=body
+                )
+                
+                response_body = json.loads(response['body'].read())
+                
+                # Extract embedding based on model type
+                if "titan" in self.embedding_model:
+                    embedding = response_body['embedding']
+                elif "cohere" in self.embedding_model:
+                    embedding = response_body['embeddings'][0]
+                else:
+                    embedding = response_body.get('embedding', response_body.get('embeddings', [{}])[0])
+                
+                return embedding
+                
+            except Exception as e:
+                logger.warning(f"Bedrock embedding failed: {e}, using fallback")
+        
+        # Fallback: simple hash-based embedding
+        import hashlib
+        hash_obj = hashlib.md5(text.encode())
+        hash_hex = hash_obj.hexdigest()
+        
+        vector = [
+            int(hash_hex[i:i+2], 16) / 255.0 
+            for i in range(0, min(len(hash_hex), self.embedding_dim * 2), 2)
+        ]
+        
+        if len(vector) < self.embedding_dim:
+            vector.extend([0.0] * (self.embedding_dim - len(vector)))
+        
+        return vector[:self.embedding_dim]
 
     def add(self, text: str, metadata: Optional[Dict[str, Any]] = None) -> str:
         """Add text with metadata to vector store."""

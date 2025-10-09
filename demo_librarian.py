@@ -97,7 +97,7 @@ def check_prerequisites():
         print("✅ AWS credentials found")
     
     # Check Bedrock model
-    model = os.getenv("BEDROCK_MODEL", "anthropic.claude-3-haiku-20240307-v1:0")
+    model = os.getenv("MODEL", "anthropic.claude-3-haiku-20240307-v1:0")
     print(f"✅ Using Bedrock model: {model}")
     
     return True

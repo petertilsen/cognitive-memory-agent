@@ -162,7 +162,7 @@ def load_config() -> AppConfig:
     memory_config = MemoryConfig()
     
     model_config = ModelConfig(
-        model_id=os.getenv("BEDROCK_MODEL", "anthropic.claude-3-haiku-20240307-v1:0"),
+        model_id=os.getenv("MODEL", "anthropic.claude-3-haiku-20240307-v1:0"),
         region=os.getenv("AWS_REGION", "us-east-1")
     )
     
