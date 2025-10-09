@@ -22,7 +22,12 @@ class MemoryItem:
     def decay(self, current_time: float, decay_rate: float = 0.1) -> None:
         """Apply forgetting curve decay."""
         time_diff = current_time - self.last_access_time
-        self.relevance_score *= np.exp(-decay_rate * time_diff)
+        # Prevent overflow by clamping the exponent
+        exponent = -decay_rate * time_diff
+        if exponent < -700:  # np.exp(-700) ≈ 0, prevents overflow
+            self.relevance_score = 0.0
+        else:
+            self.relevance_score *= np.exp(exponent)
 
     def boost(self, amount: float = 0.2) -> None:
         """Boost memory relevance when accessed."""
