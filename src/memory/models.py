@@ -22,6 +22,12 @@ class MemoryItem:
     def decay(self, current_time: float, decay_rate: float = 0.1) -> None:
         """Apply forgetting curve decay."""
         time_diff = current_time - self.last_access_time
+        
+        # Handle negative time differences (when current_time < last_access_time)
+        if time_diff <= 0:
+            # No decay if current_time hasn't advanced past last_access_time
+            return
+            
         # Prevent overflow by clamping the exponent
         exponent = -decay_rate * time_diff
         if exponent < -700:  # np.exp(-700) ≈ 0, prevents overflow
