@@ -4,7 +4,7 @@ import requests
 from typing import List, Dict, Optional
 from strands import tool
 
-from ....config.settings import get_logger
+from config.settings import get_logger
 
 logger = get_logger("agent.tools.book_repository")
 

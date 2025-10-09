@@ -2,6 +2,6 @@
 
 __version__ = "0.1.0"
 
-from .core.librarian_agent import LibrarianAgent
+from .librarian_agent import LibrarianAgent
 
 __all__ = ["LibrarianAgent"]

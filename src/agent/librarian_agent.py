@@ -5,7 +5,7 @@ from typing import Optional, List
 from strands import Agent
 from strands.models import BedrockModel
 
-from ...config.settings import get_logger
+from config.settings import get_logger
 from ..memory.memory_system import CognitiveMemorySystem
 from .tools.book_repository import search_gutenberg_books, fetch_book_content, search_openlibrary_books
 
@@ -129,7 +129,8 @@ class LibrarianAgent:
             
             def complete(self, prompt: str, max_tokens: int = 200) -> str:
                 try:
-                    return self.agent(prompt)
+                    result = self.agent(prompt)
+                    return str(result)
                 except Exception as e:
                     logger.error(f"LLM interface error: {e}")
                     return "LLM processing failed"

@@ -8,7 +8,7 @@ import numpy as np
 
 from .models import MemoryItem, CognitiveState
 from .vector_store import VectorStore
-from ...config.settings import get_logger
+from config.settings import get_logger
 
 logger = get_logger("core.memory_system")
 

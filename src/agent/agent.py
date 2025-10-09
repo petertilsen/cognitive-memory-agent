@@ -5,7 +5,7 @@ from typing import Optional
 from strands import Agent
 from strands.models import BedrockModel
 
-from ...config.settings import get_logger
+from config.settings import get_logger
 
 logger = get_logger("agent.agent")
 

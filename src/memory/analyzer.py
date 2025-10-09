@@ -3,7 +3,7 @@
 from typing import Dict, List, Any, Tuple
 from .memory_system import CognitiveMemorySystem
 from .models import MemoryItem
-from ...config.settings import get_logger
+from config.settings import get_logger
 
 logger = get_logger("memory.analyzer")
 
@@ -37,8 +37,8 @@ class MemoryAnalyzer:
                 "items": [item.content[:50] + "..." for item in self.memory_system.episodic_buffer]
             },
             "vector_store": {
-                "size": len(self.memory_system.vector_store.vectors),
-                "items": len(self.memory_system.vector_store.texts)
+                "size": self.memory_system.vector_store.count(),
+                "items": self.memory_system.vector_store.count()
             }
         }
     

@@ -5,7 +5,7 @@ import uuid
 from typing import List, Dict, Tuple, Optional, Any
 import numpy as np
 
-from ...config.settings import get_logger
+from config.settings import get_logger
 
 logger = get_logger("memory.vector_store")
 
