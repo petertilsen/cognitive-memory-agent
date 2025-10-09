@@ -171,7 +171,9 @@ class VectorStore:
             if results["ids"] and len(results["ids"]) > 0:
                 for i, doc_id in enumerate(results["ids"][0]):
                     distance = results["distances"][0][i]
-                    similarity = 1.0 - distance  # Convert distance to similarity
+                    # ChromaDB uses squared Euclidean distance, convert to similarity score
+                    # Use inverse relationship: smaller distance = higher similarity
+                    similarity = 1.0 / (1.0 + distance)  # Always between 0 and 1
                     
                     if similarity >= threshold:
                         document = results["documents"][0][i]

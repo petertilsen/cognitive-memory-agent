@@ -66,9 +66,19 @@ class LibrarianAgent:
         logger.info(f"Starting research task: {query[:100]}...")
         
         try:
-            # If no documents provided, use book repository tools to gather information
-            if not documents:
-                logger.info("No documents provided, using book repository tools to gather information")
+            # First, check if we have existing knowledge in memory
+            logger.info("Checking cognitive memory for existing knowledge...")
+            memory_result = self.memory_system.process_task(query, documents or [], self._create_llm_interface())
+            
+            # If we got high-confidence results from memory, use them
+            confidence = memory_result.get('metacognitive_status', {}).get('confidence_score', 0.0)
+            if confidence >= 0.8:  # High confidence threshold
+                logger.info(f"High confidence ({confidence:.2f}) result from memory, using cached knowledge")
+                return memory_result['final_synthesis']
+            
+            # If no documents provided and low confidence, use book repository tools to gather information
+            if not documents and confidence < 0.8:
+                logger.info("Low confidence from memory, using book repository tools to gather new information")
                 
                 # Use the agent with tools to research the topic
                 research_prompt = f"""
@@ -83,33 +93,17 @@ class LibrarianAgent:
                 """
                 
                 # Let the agent use its tools to gather information
-                tool_response = self.agent(research_prompt)
-                
-                # Extract any book content that was fetched
-                # Convert AgentResult to string if needed
-                if hasattr(tool_response, 'content'):
-                    response_text = tool_response.content
-                elif hasattr(tool_response, 'text'):
-                    response_text = tool_response.text
-                else:
-                    response_text = str(tool_response)
+                response_text = str(self.agent(research_prompt))
                 
                 documents = [response_text] if response_text else []
                 
                 logger.info(f"Gathered {len(documents)} documents using book repository tools")
+                
+                # Process the new information through memory system
+                memory_result = self.memory_system.process_task(query, documents, self._create_llm_interface())
             
-            # Use cognitive memory system to process the research task
-            result = self.memory_system.process_task(
-                task=query,
-                documents=documents,
-                llm_interface=self._create_llm_interface()
-            )
-            
-            # Extract the final synthesis for the user
-            response = result.get("final_synthesis", "Research completed")
-            
-            logger.info("Research task completed successfully")
-            return response
+            # Return the final synthesis from memory processing
+            return memory_result['final_synthesis']
             
         except Exception as e:
             logger.error(f"Research task failed: {e}")

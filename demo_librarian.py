@@ -77,7 +77,7 @@ def check_prerequisites():
         if connected:
             print(f"✅ ChromaDB server accessible at {chroma_host}:{chroma_port}")
 
-            #flush_chromadb(chroma_host, chroma_port)
+            flush_chromadb(chroma_host, chroma_port)
         else:
             print(f"❌ ChromaDB server not responding at {chroma_host}:{chroma_port}")
             return False
@@ -189,9 +189,7 @@ def demo_progressive_research(librarian):
     try:
         # Progressive queries that build on each other
         progressive_queries = [
-            "What are the basics of artificial intelligence?",
-            "How do machine learning algorithms learn from data?",
-            "What makes deep learning different from traditional ML?"
+            "What are activation functions?"
         ]
         
         analyzer = MemoryAnalyzer(librarian.memory_system)
@@ -214,7 +212,10 @@ def demo_progressive_research(librarian):
             reports.append(after_report)
             
             # Show memory evolution
-            print(f"Memory Reuse Rate: {after_report['reuse_analysis']['reuse_rate']:.1%}")
+            print(f"Overall Reuse Rate: {after_report['reuse_analysis']['reuse_rate']:.1%}")
+            print(f"  - Task-level reuse: {after_report['reuse_analysis'].get('task_reuse_operations', 0)} ops")
+            print(f"  - Subtask-level reuse: {after_report['reuse_analysis'].get('memory_reuse_operations', 0)} ops")
+            print(f"  - New info processing: {after_report['reuse_analysis'].get('new_info_operations', 0)} ops")
             print(f"Working Memory: {after_report['buffer_analysis']['working_buffer']['size']} items")
             
             # Compare with previous state

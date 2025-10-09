@@ -30,6 +30,7 @@ class MemoryConfig:
 class ModelConfig:
     """Model configuration."""
     model_id: str = "anthropic.claude-3-haiku-20240307-v1:0"
+    synthesis_model_id: str = "amazon.nova-micro-v1:0"
     region: str = "us-east-1"
     max_tokens: int = 1000
     temperature: float = 0.7

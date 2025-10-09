@@ -59,6 +59,28 @@ class MemoryAnalyzer:
             list(self.memory_system.episodic_buffer)
         )
         
+        # Always process operation logs if available, even if memory buffers are empty
+        if hasattr(self.memory_system, 'operation_logs'):
+            # Count all types of reuse operations
+            task_reuse_ops = sum(1 for op in self.memory_system.operation_logs if op.get('type') == 'task_reuse')
+            memory_reuse_ops = sum(1 for op in self.memory_system.operation_logs if op.get('type') == 'memory_reuse')
+            new_info_ops = sum(1 for op in self.memory_system.operation_logs if 'new_info' in op.get('type', '').lower())
+            
+            total_reuse_ops = task_reuse_ops + memory_reuse_ops
+            total_ops = total_reuse_ops + new_info_ops
+            
+            # Calculate overall reuse rate (including task-level reuse)
+            overall_reuse_rate = total_reuse_ops / total_ops if total_ops > 0 else 0.0
+            
+            reuse_stats.update({
+                "task_reuse_operations": task_reuse_ops,
+                "memory_reuse_operations": memory_reuse_ops,
+                "new_info_operations": new_info_ops,
+                "total_reuse_operations": total_reuse_ops,
+                "reuse_rate": overall_reuse_rate,
+                "subtask_reuse_rate": memory_reuse_ops / total_ops if total_ops > 0 else 0.0
+            })
+        
         if all_items:
             total_accesses = sum(item.access_count for item in all_items)
             unique_items = len(all_items)
@@ -76,9 +98,20 @@ class MemoryAnalyzer:
             
             # Calculate reuse based on cognitive operations
             if hasattr(self.memory_system, 'operation_logs'):
-                reuse_ops = sum(1 for op in self.memory_system.operation_logs if 'reuse' in op.get('type', '').lower())
+                # Count all types of reuse operations
+                task_reuse_ops = sum(1 for op in self.memory_system.operation_logs if op.get('type') == 'task_reuse')
+                memory_reuse_ops = sum(1 for op in self.memory_system.operation_logs if op.get('type') == 'memory_reuse')
                 new_info_ops = sum(1 for op in self.memory_system.operation_logs if 'new_info' in op.get('type', '').lower())
-                total_ops = reuse_ops + new_info_ops
+                
+                print(f"DEBUG: task_reuse_ops={task_reuse_ops}, memory_reuse_ops={memory_reuse_ops}, new_info_ops={new_info_ops}")
+                
+                total_reuse_ops = task_reuse_ops + memory_reuse_ops
+                total_ops = total_reuse_ops + new_info_ops
+                
+                # Calculate overall reuse rate (including task-level reuse)
+                overall_reuse_rate = total_reuse_ops / total_ops if total_ops > 0 else 0.0
+                
+                print(f"DEBUG: overall_reuse_rate={overall_reuse_rate}")
                 
                 # Calculate cross-task reuse rate (more meaningful metric)
                 if hasattr(self.memory_system, 'task_start_memory_size'):
@@ -88,10 +121,13 @@ class MemoryAnalyzer:
                         "task_start_memory_size": self.memory_system.task_start_memory_size
                     })
                 
-                reuse_rate = reuse_ops / total_ops if total_ops > 0 else 0.0
                 reuse_stats.update({
-                    "reuse_operations": reuse_ops,
-                    "new_info_operations": new_info_ops
+                    "task_reuse_operations": task_reuse_ops,
+                    "memory_reuse_operations": memory_reuse_ops,
+                    "new_info_operations": new_info_ops,
+                    "total_reuse_operations": total_reuse_ops,
+                    "reuse_rate": overall_reuse_rate,
+                    "subtask_reuse_rate": memory_reuse_ops / total_ops if total_ops > 0 else 0.0
                 })
             else:
                 # Fallback: estimate based on source types
@@ -99,13 +135,15 @@ class MemoryAnalyzer:
                 new_sourced = sum(1 for item in all_items if item.source in ['generation', 'promotion', 'document'])
                 total_sourced = memory_sourced + new_sourced
                 
-                reuse_rate = memory_sourced / total_sourced if total_sourced > 0 else 0.0
+                fallback_reuse_rate = memory_sourced / total_sourced if total_sourced > 0 else 0.0
+                reuse_stats.update({
+                    "reuse_rate": fallback_reuse_rate
+                })
             
             reuse_stats.update({
                 "high_access_items": high_access_items,
                 "total_accesses": total_accesses,
-                "unique_items": unique_items,
-                "reuse_rate": reuse_rate
+                "unique_items": unique_items
             })
         
         return reuse_stats

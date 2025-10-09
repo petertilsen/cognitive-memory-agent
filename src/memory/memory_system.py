@@ -70,6 +70,15 @@ class CognitiveMemorySystem:
         logger.info(f"Processing task: {task[:100]}...")
         start_time = time.time()
         
+        # Check if this exact task has been processed before
+        existing_task_knowledge = self._check_task_memory(task)
+        if existing_task_knowledge:
+            logger.info(f"Reusing existing knowledge for task: {task[:50]}...")
+            return self._reuse_task_knowledge(task, existing_task_knowledge, start_time)
+        # no need to continue if we don't have documents, nor memory
+        if not existing_task_knowledge and not documents:
+            return {}
+
         # Track memory size at task start for reuse analysis
         self.task_start_memory_size = len(self.working_buffer)
         
@@ -92,7 +101,9 @@ class CognitiveMemorySystem:
             preparation_result = self._prepare_information_actively(task, documents, llm_interface)
         
         # Phase 3: Progressive reasoning
-        insights = self._process_subtasks_progressively(subtasks, llm_interface)
+        insights = {}
+        if preparation_result:
+            insights = self._process_subtasks_progressively(subtasks, llm_interface)
         
         # Phase 4: Metacognitive assessment
         metacognitive_status = self.get_metacognitive_status()
@@ -217,7 +228,7 @@ class CognitiveMemorySystem:
 
             if existing_knowledge:
                 logger.debug(f"Reusing existing knowledge: {len(existing_knowledge)} items")
-                insight = self._synthesize_from_memory(existing_knowledge)
+                insight = self._synthesize_from_memory(existing_knowledge, llm_interface)
                 # Log reuse operation
                 self.operation_logs.append({"type": "memory_reuse", "subtask": subtask, "items_count": len(existing_knowledge)})
             else:
@@ -243,7 +254,7 @@ class CognitiveMemorySystem:
         return insights
 
     def _check_working_memory(self, query: str) -> List[MemoryItem]:
-        """Check relevant information in working memory."""
+        """Check relevant information in working memory with strict semantic matching."""
         relevant_items = []
 
         all_buffers = (
@@ -256,22 +267,48 @@ class CognitiveMemorySystem:
             query_words = set(query.lower().split())
             content_words = set(item.content.lower().split())
 
-            if query_words & content_words or item.task_context:
+            # Very strict matching: require high word overlap (>50%) AND semantic relevance
+            overlap = len(query_words & content_words)
+            overlap_ratio = overlap / len(query_words) if query_words else 0
+            
+            # Only consider it relevant if:
+            # 1. Very high word overlap (>50% of query words match), AND
+            # 2. Content is substantial (not just generic phrases)
+            if overlap_ratio > 0.5 and len(item.content) > 100:
                 item.boost()
                 relevant_items.append(item)
 
         return relevant_items
 
-    def _synthesize_from_memory(self, memory_items: List[MemoryItem]) -> str:
-        """Synthesize information from memory."""
-        contents = [item.content[:100] for item in memory_items[:3]]
-        return f"Synthesized from memory: {' '.join(contents)}"
+    def _synthesize_from_memory(self, memory_items: List[MemoryItem], llm_interface=None) -> str:
+        """Synthesize information from memory using LLM analysis."""
+        if not memory_items:
+            return "No relevant information found in memory"
+        
+        # Extract content from memory items
+        contents = [item.content for item in memory_items[:5]]  # Use more items and full content
+        combined_content = "\n\n".join(contents)
+        
+        if llm_interface:
+            synthesis_prompt = f"""Based on the following information from memory, provide a comprehensive synthesis:
+
+{combined_content}
+
+Please synthesize this information into a coherent and informative response."""
+            
+            try:
+                return llm_interface.complete(synthesis_prompt)
+            except Exception as e:
+                logger.error(f"LLM synthesis failed: {e}")
+                return f"Memory synthesis: {combined_content[:200]}..."
+        else:
+            return f"Memory synthesis: {combined_content[:200]}..."
 
     def _active_retrieval(self, subtask: str) -> List[str]:
         """Active retrieval (predictive rather than reactive)."""
         if self.vector_store:
             results = self.vector_store.search(subtask, top_k=3)
-            return [text for _, _, text in results]
+            return [document for _, _, document, _ in results]  # Extract document from (doc_id, similarity, document, metadata)
         return []
 
     def _process_new_information(self, info: List[str], llm_interface=None) -> str:
@@ -604,3 +641,75 @@ class CognitiveMemorySystem:
                 cluster_count += 1
         
         return len(clusters)
+
+    def _check_task_memory(self, task: str) -> List[MemoryItem]:
+        """Check if this exact task has been processed before."""
+        # Search ChromaDB for content related to this specific task
+        if self.vector_store:
+            results = self.vector_store.search(task, top_k=5)
+            # Convert search results to MemoryItem objects
+            memory_items = []
+            for doc_id, similarity, document, metadata in results:
+                if similarity > 0.005:  # Higher threshold for task-level reuse
+                    memory_item = MemoryItem(
+                        content=document,
+                        embedding=np.array([]),  # Empty embedding for reuse
+                        relevance_score=similarity,
+                        access_count=1,
+                        task_context=task,
+                        source="chromadb_reuse"
+                    )
+                    memory_items.append(memory_item)
+            return memory_items
+        return []
+
+    def _reuse_task_knowledge(self, task: str, existing_knowledge: List[MemoryItem], start_time: float) -> Dict[str, Any]:
+        """Reuse existing knowledge for a previously processed task."""
+        # Synthesize the existing knowledge into a comprehensive response
+        if existing_knowledge:
+            synthesis = self._synthesize_from_memory(existing_knowledge, None)  # No LLM needed for simple reuse
+            insights = [synthesis]
+            
+            # Log the reuse operation
+            self.operation_logs.append({
+                "type": "task_reuse", 
+                "task": task, 
+                "items_count": len(existing_knowledge)
+            })
+        else:
+            synthesis = f"Previously processed task: {task}"
+            insights = [synthesis]
+        
+        elapsed_time = time.time() - start_time
+        
+        return {
+            "task": task,
+            "subtasks": ["Task Reuse"],
+            "insights": insights,
+            "final_synthesis": synthesis,
+            "preparation_result": {},
+            "metacognitive_status": {
+                "current_task": task,
+                "progress": {
+                    "total_subtasks": 1,
+                    "completed_subtasks": 1,
+                    "completion_ratio": 1.0
+                },
+                "information_gaps": [],
+                "working_hypothesis": "Reusing existing knowledge",
+                "confidence_score": 0.9,  # High confidence for reuse
+                "memory_utilization": {
+                    "immediate_buffer": len(self.immediate_buffer),
+                    "working_buffer": len(self.working_buffer),
+                    "episodic_buffer": len(self.episodic_buffer),
+                    "vector_store": len(self.vector_store.vectors) if self.vector_store else 0
+                }
+            },
+            "processing_time": elapsed_time,
+            "memory_state": {
+                "immediate_buffer_size": len(self.immediate_buffer),
+                "working_buffer_size": len(self.working_buffer),
+                "episodic_buffer_size": len(self.episodic_buffer),
+                "vector_store_size": len(self.vector_store.vectors) if self.vector_store else 0
+            }
+        }
