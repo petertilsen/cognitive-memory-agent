@@ -4,63 +4,53 @@ import os
 from typing import Optional, List
 from strands import Agent
 from strands.models import BedrockModel
-
-from config.settings import get_logger
+from config.settings import get_logger, load_config
 from ..memory.memory_system import CognitiveMemorySystem
-from .tools.book_repository import fetch_book_content, search_openlibrary_books
+from .tools.book_repository import fetch_book_content, search_openlibrary_books, search_local_knowledge
 
 logger = get_logger("agent.librarian_agent")
-
+config = load_config()
 
 class LibrarianAgent:
     """Librarian Agent that demonstrates cognitive memory capabilities for research tasks."""
     
     def __init__(
         self, 
-        model_id: Optional[str] = None,
-        region: Optional[str] = None,
-        system_prompt: Optional[str] = None,
-        embedding_model: str = "amazon.titan-embed-text-v1"
+        model_id: Optional[str] = config.model.model_id,
+        embedding_model_id: Optional[str] = config.embedding_model.model_id,
+        synthesis_model_id: Optional[str] = config.synthesis_model.model_id,
+        region: Optional[str] = config.model.region,
+        system_prompt: Optional[str] = None
+
     ):
-        self.model_id = model_id or os.getenv("MODEL", "anthropic.claude-3-haiku-20240307-v1:0")
-        self.region = region or os.getenv("AWS_REGION", "us-east-1")
-        self.embedding_model = embedding_model
-        
-        logger.info(f"Initializing LibrarianAgent with model: {self.model_id}, region: {self.region}")
-        
-        # Initialize cognitive memory system
-        try:
-            self.memory_system = CognitiveMemorySystem(embedding_model=embedding_model)
-            logger.info("Cognitive memory system initialized successfully")
-        except Exception as e:
-            logger.error(f"Failed to initialize cognitive memory system: {e}")
-            raise
-        
-        try:
-            # Configure Bedrock model
-            self.model = BedrockModel(
-                model_id=self.model_id
-            )
-            logger.info("Bedrock model configured successfully")
-        except Exception as e:
-            logger.error(f"Failed to configure Bedrock model: {e}")
-            raise
-        
+        self.model_id = model_id
+        self.embedding_model_id = embedding_model_id
+        self.synthesis_model_id = synthesis_model_id
+        self.region = region
+
+        # Configure main Bedrock model for agent
+        self.model = BedrockModel(
+            model_id=self.model_id,
+            max_tokens=config.model.max_tokens
+        )
+
         # Librarian-specific system prompt
         self.system_prompt = system_prompt or self._get_librarian_system_prompt()
-        
-        try:
-            # Create Strands agent with librarian tools
-            self.agent = Agent(
-                model=self.model,
-                tools=[fetch_book_content, search_openlibrary_books],
-                system_prompt=self.system_prompt
-            )
-            logger.info("Librarian agent created successfully with Open Library tools")
-        except Exception as e:
-            logger.error(f"Failed to create librarian agent: {e}")
-            raise
-    
+
+        # Create main Strands agent with librarian tools
+        self.agent = Agent(
+            model=self.model,
+            tools=[search_local_knowledge, search_openlibrary_books],
+            system_prompt=self.system_prompt
+        )
+
+        # Initialize cognitive memory system (manages its own models)
+        self.memory_system = CognitiveMemorySystem(
+            embedding_model_id=embedding_model_id,
+            synthesis_model_id=synthesis_model_id,
+            region=region
+        )
+
     def research(self, query: str, documents: List[str] = None) -> str:
         """Main research method using cognitive memory system with book repository tools."""
         logger.info(f"Starting research task: {query[:100]}...")
@@ -68,7 +58,7 @@ class LibrarianAgent:
         try:
             # First, check if we have existing knowledge in memory
             logger.info("Checking cognitive memory for existing knowledge...")
-            memory_result = self.memory_system.process_task(query, documents or [], self._create_llm_interface())
+            memory_result = self.memory_system.process_task(query, documents or [])
             
             # If we got high-confidence results from memory, use them
             confidence = memory_result.get('metacognitive_status', {}).get('confidence_score', 0.0)
@@ -100,7 +90,7 @@ class LibrarianAgent:
                 logger.info(f"Gathered {len(documents)} documents using book repository tools")
                 
                 # Process the new information through memory system
-                memory_result = self.memory_system.process_task(query, documents, self._create_llm_interface())
+                memory_result = self.memory_system.process_task(query, documents)
             
             # Return the final synthesis from memory processing
             return memory_result['final_synthesis']
@@ -145,22 +135,6 @@ class LibrarianAgent:
         except Exception as e:
             logger.error(f"Failed to process async message: {e}", exc_info=True)
             raise
-    
-    def _create_llm_interface(self):
-        """Create LLM interface for memory system."""
-        class LLMInterface:
-            def __init__(self, agent):
-                self.agent = agent
-            
-            def complete(self, prompt: str, max_tokens: int = 200) -> str:
-                try:
-                    result = self.agent(prompt)
-                    return str(result)
-                except Exception as e:
-                    logger.error(f"LLM interface error: {e}")
-                    return "LLM processing failed"
-        
-        return LLMInterface(self.agent)
     
     def _get_librarian_system_prompt(self) -> str:
         """Get librarian-specific system prompt."""

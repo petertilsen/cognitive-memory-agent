@@ -77,7 +77,7 @@ def check_prerequisites():
         if connected:
             print(f"✅ ChromaDB server accessible at {chroma_host}:{chroma_port}")
 
-            flush_chromadb(chroma_host, chroma_port)
+            # flush_chromadb(chroma_host, chroma_port)  # Commented out - causes hanging
         else:
             print(f"❌ ChromaDB server not responding at {chroma_host}:{chroma_port}")
             return False
@@ -189,7 +189,10 @@ def demo_progressive_research(librarian):
     try:
         # Progressive queries that build on each other
         progressive_queries = [
-            "What are activation functions?"
+            "What are activation functions?",
+            "which is the most used activation function?",
+            "why would I use relu over sigmoid?",
+            "What is quantum computing and how does it work?"
         ]
         
         analyzer = MemoryAnalyzer(librarian.memory_system)

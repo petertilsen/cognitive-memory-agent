@@ -30,11 +30,9 @@ class MemoryConfig:
 class ModelConfig:
     """Model configuration."""
     model_id: str = "anthropic.claude-3-haiku-20240307-v1:0"
-    synthesis_model_id: str = "amazon.nova-micro-v1:0"
     region: str = "us-east-1"
     max_tokens: int = 1000
     temperature: float = 0.7
-
 
 @dataclass
 class LoggingConfig:
@@ -50,6 +48,8 @@ class AppConfig:
     """Application configuration."""
     memory: MemoryConfig
     model: ModelConfig
+    embedding_model: ModelConfig
+    synthesis_model: ModelConfig
     logging: LoggingConfig
     debug: bool = False
 
@@ -166,6 +166,16 @@ def load_config() -> AppConfig:
         model_id=os.getenv("MODEL", "anthropic.claude-3-haiku-20240307-v1:0"),
         region=os.getenv("AWS_REGION", "us-east-1")
     )
+
+    embedding_model_config = ModelConfig(
+        model_id=os.getenv("EMBEDDING_MODEL", "amazon.titan-embed-text-v1"),
+        region=os.getenv("AWS_REGION", "us-east-1")
+    )
+
+    synthesis_model_config = ModelConfig(
+        model_id=os.getenv("SYNTHESIS_MODEL", "amazon.titan-embed-text-v1"),
+        region=os.getenv("AWS_REGION", "us-east-1")
+    )
     
     logging_config = LoggingConfig(
         level=os.getenv("LOG_LEVEL", "INFO"),
@@ -176,6 +186,8 @@ def load_config() -> AppConfig:
     app_config = AppConfig(
         memory=memory_config,
         model=model_config,
+        embedding_model=embedding_model_config,
+        synthesis_model=synthesis_model_config,
         logging=logging_config,
         debug=os.getenv("DEBUG", "false").lower() == "true"
     )

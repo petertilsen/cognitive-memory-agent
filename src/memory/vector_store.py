@@ -4,132 +4,65 @@ import os
 import uuid
 from typing import List, Dict, Tuple, Optional, Any
 import numpy as np
-
 from config.settings import get_logger
+import chromadb
+from chromadb.config import Settings
+from strands.models import BedrockModel
 
 logger = get_logger("memory.vector_store")
-
-try:
-    import chromadb
-    from chromadb.config import Settings
-    HAS_CHROMADB = True
-except ImportError:
-    HAS_CHROMADB = False
-
-try:
-    import boto3
-    import json
-    HAS_BEDROCK = True
-except ImportError:
-    HAS_BEDROCK = False
-
 
 class VectorStore:
     """ChromaDB-based vector storage with persistence."""
     
-    def __init__(self, embedding_model: str = "amazon.titan-embed-text-v1", 
+    def __init__(self, embedding_model: BedrockModel,
                  chroma_host: str = "localhost", chroma_port: int = 8000,
                  collection_name: str = "cognitive_memory"):
-        
-        if not HAS_CHROMADB:
-            logger.error("ChromaDB not installed")
-            raise ImportError("ChromaDB not installed. Run: pip install chromadb")
-        
+
         logger.info(f"Initializing VectorStore: {chroma_host}:{chroma_port}, collection: {collection_name}")
         
         self.embedding_model = embedding_model
         self.collection_name = collection_name
+        self.embedding_dim = 1536
         
-        # Initialize Bedrock client for embeddings
-        if HAS_BEDROCK:
-            try:
-                region = os.getenv("AWS_REGION", "us-east-1")
-                self.bedrock_client = boto3.client('bedrock-runtime', region_name=region)
-                self.embedding_dim = 1536 if "titan" in embedding_model else 1024  # Titan: 1536, Cohere: 1024
-                logger.info(f"Bedrock embeddings initialized: {embedding_model}, dim: {self.embedding_dim}")
-            except Exception as e:
-                logger.warning(f"Failed to initialize Bedrock client: {e}, using fallback")
-                self.bedrock_client = None
-                self.embedding_dim = 384
-        else:
-            logger.warning("Bedrock not available, using simple hash-based embeddings")
-            self.bedrock_client = None
-            self.embedding_dim = 384
-        
+        logger.info(f"Using provided embedding model, dim: {self.embedding_dim}")
+
         # Initialize ChromaDB client
-        try:
-            self.client = chromadb.HttpClient(
-                host=chroma_host,
-                port=chroma_port,
-                settings=Settings(allow_reset=True)
-            )
-            
-            # Get or create collection
-            self.collection = self.client.get_or_create_collection(
-                name=collection_name,
-                metadata={"embedding_model": embedding_model}
-            )
-            
-            logger.info(f"Connected to ChromaDB server: {chroma_host}:{chroma_port}")
-            
-        except Exception as e:
-            # Fallback to in-memory if ChromaDB server not available
-            logger.warning(f"ChromaDB server not available at {chroma_host}:{chroma_port}: {e}")
-            logger.info("Falling back to in-memory ChromaDB")
-            
-            self.client = chromadb.Client()
-            self.collection = self.client.get_or_create_collection(
-                name=collection_name,
-                metadata={"embedding_model": embedding_model}
-            )
+        self.client = chromadb.HttpClient(
+            host=chroma_host,
+            port=chroma_port,
+            settings=Settings(allow_reset=True)
+        )
+
+        # Get or create collection
+        self.collection = self.client.get_or_create_collection(
+            name=collection_name,
+            metadata={"embedding_model": self.embedding_model.config["model_id"]}
+        )
+
+        logger.info(f"Connected to ChromaDB server: {chroma_host}:{chroma_port}")
+
+
 
     def embed(self, text: str) -> List[float]:
-        """Generate embedding for text using Bedrock."""
-        if self.bedrock_client:
-            try:
-                # Use Bedrock embedding model
-                if "titan" in self.embedding_model:
-                    body = json.dumps({"inputText": text})
-                elif "cohere" in self.embedding_model:
-                    body = json.dumps({"texts": [text], "input_type": "search_document"})
-                else:
-                    # Default to Titan format
-                    body = json.dumps({"inputText": text})
-                
-                response = self.bedrock_client.invoke_model(
-                    modelId=self.embedding_model,
-                    body=body
-                )
-                
-                response_body = json.loads(response['body'].read())
-                
-                # Extract embedding based on model type
-                if "titan" in self.embedding_model:
-                    embedding = response_body['embedding']
-                elif "cohere" in self.embedding_model:
-                    embedding = response_body['embeddings'][0]
-                else:
-                    embedding = response_body.get('embedding', response_body.get('embeddings', [{}])[0])
-                
-                return embedding
-                
-            except Exception as e:
-                logger.warning(f"Bedrock embedding failed: {e}, using fallback")
-        
-        # Fallback: simple hash-based embedding
-        import hashlib
-        hash_obj = hashlib.md5(text.encode())
-        hash_hex = hash_obj.hexdigest()
-        
-        vector = [
-            int(hash_hex[i:i+2], 16) / 255.0 
-            for i in range(0, min(len(hash_hex), self.embedding_dim * 2), 2)
-        ]
-        
-        if len(vector) < self.embedding_dim:
-            vector.extend([0.0] * (self.embedding_dim - len(vector)))
-        
-        return vector[:self.embedding_dim]
+        """Generate embedding for text using the embedding model."""
+        try:
+            import json
+            body = json.dumps({"inputText": text})
+
+            response = self.embedding_model.client.invoke_model(
+                modelId=self.embedding_model.config["model_id"],
+                body=body
+            )
+
+            response_body = json.loads(response['body'].read())
+
+            # Extract embedding based on model type
+            return response_body['embedding']
+
+        except Exception as e:
+            logger.warning(f"Embedding generation failed: {e}, using fallback")
+            return [0.0] * self.embedding_dim
+
 
     def add(self, text: str, metadata: Optional[Dict[str, Any]] = None) -> str:
         """Add text with metadata to vector store."""
@@ -230,7 +163,7 @@ class VectorStore:
             self.client.delete_collection(self.collection_name)
             self.collection = self.client.get_or_create_collection(
                 name=self.collection_name,
-                metadata={"embedding_model": self.embedding_model}
+                metadata={"embedding_model": self.embedding_model.config["model_id"]}
             )
             logger.info(f"Collection reset successfully: {self.collection_name}")
         except Exception as e:

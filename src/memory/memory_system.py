@@ -6,19 +6,32 @@ from collections import deque
 from typing import List, Dict, Optional, Any, Tuple
 import numpy as np
 
+from strands.models import BedrockModel
+from strands import Agent
 from .models import MemoryItem, CognitiveState
 from .vector_store import VectorStore
-from config.settings import get_logger
+from config.settings import get_logger, load_config
 
 logger = get_logger("core.memory_system")
+config = load_config()
 
 
 class CognitiveMemorySystem:
     """Multi-layered cognitive memory system with vector search and ReAct integration."""
     
-    def __init__(self, embedding_model: str = "amazon.titan-embed-text-v1"):
-        logger.info(f"Initializing CognitiveMemorySystem with embedding_model: {embedding_model}")
+    def __init__(self, 
+                 embedding_model_id: str = "amazon.titan-embed-text-v1", 
+                 synthesis_model_id: str = "anthropic.claude-3-haiku-20240307-v1:0",
+                 region: str = "us-east-1"):
+        logger.info(f"Initializing CognitiveMemorySystem with embedding_model: {embedding_model_id}, synthesis_model: {synthesis_model_id}")
+
+        # Create internal models
+        self.embedding_model = BedrockModel(model_id=embedding_model_id, max_tokens=config.model.max_tokens)
+        self.synthesis_model = BedrockModel(model_id=synthesis_model_id, max_tokens=config.model.max_tokens)
         
+        # Create internal synthesis agent
+        self._synthesis_agent = Agent(model=self.synthesis_model)
+
         # Layered memory buffers
         self.immediate_buffer = deque(maxlen=8)
         self.working_buffer = deque(maxlen=64)
@@ -32,7 +45,7 @@ class CognitiveMemorySystem:
             collection_name = os.getenv("CHROMA_COLLECTION", "cognitive_memory")
             
             self.vector_store = VectorStore(
-                embedding_model=embedding_model,
+                embedding_model=self.embedding_model,
                 chroma_host=chroma_host,
                 chroma_port=chroma_port,
                 collection_name=collection_name
@@ -57,7 +70,7 @@ class CognitiveMemorySystem:
         
         logger.debug("CognitiveMemorySystem initialization complete")
 
-    def process_task(self, task: str, documents: List[str] = None, llm_interface=None) -> Dict[str, Any]:
+    def process_task(self, task: str, documents: List[str] = None) -> Dict[str, Any]:
         """
         Main entry point for cognitive memory processing.
         
@@ -83,7 +96,7 @@ class CognitiveMemorySystem:
         self.task_start_memory_size = len(self.working_buffer)
         
         # Phase 1: Task understanding and planning
-        subtasks = self._decompose_task(task, llm_interface)
+        subtasks = self._decompose_task(task)
         
         # Initialize cognitive state
         self.cognitive_state = CognitiveState(
@@ -98,18 +111,18 @@ class CognitiveMemorySystem:
         # Phase 2: Active information preparation
         preparation_result = {}
         if documents:
-            preparation_result = self._prepare_information_actively(task, documents, llm_interface)
+            preparation_result = self._prepare_information_actively(task, documents)
         
         # Phase 3: Progressive reasoning
         insights = {}
         if preparation_result:
-            insights = self._process_subtasks_progressively(subtasks, llm_interface)
+            insights = self._process_subtasks_progressively(subtasks)
         
         # Phase 4: Metacognitive assessment
         metacognitive_status = self.get_metacognitive_status()
         
         # Phase 5: Final synthesis
-        final_synthesis = self._synthesize_final_result(task, insights, llm_interface)
+        final_synthesis = self._synthesize_final_result(task, insights)
         
         elapsed_time = time.time() - start_time
         
@@ -162,20 +175,20 @@ class CognitiveMemorySystem:
             }
         }
 
-    def _decompose_task(self, task: str, llm_interface=None) -> List[str]:
-        """Decompose task into subtasks using LLM."""
+    def _decompose_task(self, task: str) -> List[str]:
+        """Decompose task into subtasks using internal synthesis agent."""
         logger.debug(f"Decomposing task: {task[:50]}...")
         
-        if llm_interface:
-            decomposition_prompt = f"""
-            Decompose this task into subtasks:
-            Task: {task}
-            Output format: List of subtasks
-            """
-            subtasks_response = llm_interface.complete(decomposition_prompt)
+        decomposition_prompt = f"""
+        Decompose this task into subtasks:
+        Task: {task}
+        Output format: List of subtasks
+        """
+        try:
+            subtasks_response = str(self._synthesis_agent(decomposition_prompt))
             return self._parse_subtasks(subtasks_response)
-        else:
-            # Fallback when no LLM available
+        except Exception as e:
+            logger.error(f"Task decomposition failed: {e}")
             return ["Analyze", "Process", "Synthesize"]
 
     def _parse_subtasks(self, response: str) -> List[str]:
@@ -190,18 +203,18 @@ class CognitiveMemorySystem:
                     subtasks.append(task)
         return subtasks if subtasks else ["Analyze", "Process", "Synthesize"]
 
-    def _predict_information_needs(self, task: str, llm_interface=None) -> str:
+    def _predict_information_needs(self, task: str) -> str:
         """Predict what information will be needed for a task."""
         logger.debug(f"Predicting information needs for task: {task[:50]}...")
         
-        if llm_interface:
-            prediction_prompt = f"""
-            Task: {task}
-            Predict what information will be needed:
-            """
-            return llm_interface.complete(prediction_prompt)
-        else:
-            # Fallback prediction
+        prediction_prompt = f"""
+        Task: {task}
+        Predict what information will be needed:
+        """
+        try:
+            return str(self._synthesis_agent(prediction_prompt))
+        except Exception as e:
+            logger.error(f"Information needs prediction failed: {e}")
             return "Will need: definitions, examples, applications, limitations"
 
     def _assess_relevance(self, content: str, predicted_needs: str) -> float:
@@ -217,7 +230,7 @@ class CognitiveMemorySystem:
 
         return relevance
 
-    def _process_subtasks_progressively(self, subtasks: List[str], llm_interface=None) -> List[str]:
+    def _process_subtasks_progressively(self, subtasks: List[str]) -> List[str]:
         """Process subtasks with progressive reasoning and memory reuse."""
         logger.debug(f"Processing {len(subtasks)} subtasks progressively")
         
@@ -228,13 +241,13 @@ class CognitiveMemorySystem:
 
             if existing_knowledge:
                 logger.debug(f"Reusing existing knowledge: {len(existing_knowledge)} items")
-                insight = self._synthesize_from_memory(existing_knowledge, llm_interface)
+                insight = self._synthesize_from_memory(existing_knowledge)
                 # Log reuse operation
                 self.operation_logs.append({"type": "memory_reuse", "subtask": subtask, "items_count": len(existing_knowledge)})
             else:
                 logger.debug(f"Active retrieval for: {subtask}")
                 new_info = self._active_retrieval(subtask)
-                insight = self._process_new_information(new_info, llm_interface)
+                insight = self._process_new_information(new_info)
                 # Log new information processing
                 self.operation_logs.append({"type": "new_info_processing", "subtask": subtask, "items_count": len(new_info)})
 
@@ -280,8 +293,8 @@ class CognitiveMemorySystem:
 
         return relevant_items
 
-    def _synthesize_from_memory(self, memory_items: List[MemoryItem], llm_interface=None) -> str:
-        """Synthesize information from memory using LLM analysis."""
+    def _synthesize_from_memory(self, memory_items: List[MemoryItem]) -> str:
+        """Synthesize information from memory using internal synthesis agent."""
         if not memory_items:
             return "No relevant information found in memory"
         
@@ -289,19 +302,16 @@ class CognitiveMemorySystem:
         contents = [item.content for item in memory_items[:5]]  # Use more items and full content
         combined_content = "\n\n".join(contents)
         
-        if llm_interface:
-            synthesis_prompt = f"""Based on the following information from memory, provide a comprehensive synthesis:
+        synthesis_prompt = f"""Based on the following information from memory, provide a comprehensive synthesis:
 
 {combined_content}
 
 Please synthesize this information into a coherent and informative response."""
-            
-            try:
-                return llm_interface.complete(synthesis_prompt)
-            except Exception as e:
-                logger.error(f"LLM synthesis failed: {e}")
-                return f"Memory synthesis: {combined_content[:200]}..."
-        else:
+        
+        try:
+            return str(self._synthesis_agent(synthesis_prompt))
+        except Exception as e:
+            logger.error(f"Memory synthesis failed: {e}")
             return f"Memory synthesis: {combined_content[:200]}..."
 
     def _active_retrieval(self, subtask: str) -> List[str]:
@@ -311,24 +321,24 @@ Please synthesize this information into a coherent and informative response."""
             return [document for _, _, document, _ in results]  # Extract document from (doc_id, similarity, document, metadata)
         return []
 
-    def _process_new_information(self, info: List[str], llm_interface=None) -> str:
-        """Process new information using LLM analysis."""
+    def _process_new_information(self, info: List[str]) -> str:
+        """Process new information using internal synthesis agent."""
         if not info:
             return "No new information found"
         
-        if llm_interface:
-            # Combine multiple pieces of information
-            combined_info = " | ".join(info[:3])  # Use top 3 results
-            
-            analysis_prompt = f"""
-            Analyze this information and extract key insights:
-            {combined_info}
-            
-            Provide a concise analysis focusing on the main points:
-            """
-            return llm_interface.complete(analysis_prompt)
-        else:
-            # Improved fallback - at least return actual content
+        # Combine multiple pieces of information
+        combined_info = " | ".join(info[:3])  # Use top 3 results
+        
+        prompt = f"""
+        Analyze this information and extract key insights:
+        {combined_info}
+        
+        Provide a concise analysis focusing on the main points:
+        """
+        try:
+            return str(self._synthesis_agent(prompt))
+        except Exception as e:
+            logger.error(f"New information processing failed: {e}")
             return f"Retrieved: {info[0][:200]}..." if info else "No information"
 
     def _update_working_buffer(self, content: str, source: str = "generation"):
@@ -378,12 +388,12 @@ Please synthesize this information into a coherent and informative response."""
         logger.debug(f"Document chunked into {len(chunks)} semantic chunks")
         return chunks
 
-    def _prepare_information_actively(self, task: str, documents: List[str], llm_interface=None) -> Dict[str, Any]:
+    def _prepare_information_actively(self, task: str, documents: List[str]) -> Dict[str, Any]:
         """Actively prepare information based on predicted needs."""
         logger.info(f"Actively preparing information for task: {task[:50]}...")
         
         # Predict needed information types
-        predicted_needs = self._predict_information_needs(task, llm_interface)
+        predicted_needs = self._predict_information_needs(task)
         
         prepared_chunks = 0
         promoted_chunks = 0
@@ -501,17 +511,17 @@ Please synthesize this information into a coherent and informative response."""
         logger.debug(f"Confidence evaluated: {confidence:.2f}")
         return confidence
 
-    def _synthesize_final_result(self, task: str, insights: List[str], llm_interface=None) -> str:
+    def _synthesize_final_result(self, task: str, insights: List[str]) -> str:
         """Synthesize final result from task and insights."""
-        if llm_interface:
-            synthesis_prompt = f"""
-            Task: {task}
-            Key insights: {insights}
-            Synthesize a comprehensive answer:
-            """
-            return llm_interface.complete(synthesis_prompt)
-        else:
-            # Fallback synthesis
+        synthesis_prompt = f"""
+        Task: {task}
+        Key insights: {insights}
+        Synthesize a comprehensive answer:
+        """
+        try:
+            return str(self._synthesis_agent(synthesis_prompt))
+        except Exception as e:
+            logger.error(f"Final synthesis failed: {e}")
             return f"Task: {task}. Based on analysis: {'; '.join(insights[:3])}"
 
     def _find_similar_memories(self, content: str, threshold: float = 0.8) -> List[Tuple[float, str]]:
@@ -667,7 +677,7 @@ Please synthesize this information into a coherent and informative response."""
         """Reuse existing knowledge for a previously processed task."""
         # Synthesize the existing knowledge into a comprehensive response
         if existing_knowledge:
-            synthesis = self._synthesize_from_memory(existing_knowledge, None)  # No LLM needed for simple reuse
+            synthesis = self._synthesize_from_memory(existing_knowledge)
             insights = [synthesis]
             
             # Log the reuse operation

@@ -5,9 +5,10 @@ from typing import Optional
 from strands import Agent
 from strands.models import BedrockModel
 
-from config.settings import get_logger
+from config.settings import get_logger, load_config
 
 logger = get_logger("agent.agent")
+config = load_config()
 
 
 class CognitiveMemoryAgent:
@@ -30,7 +31,8 @@ class CognitiveMemoryAgent:
             # Configure Bedrock model
             self.model = BedrockModel(
                 model_id=self.model_id,
-                region=self.region
+                region=self.region,
+                max_tokens=config.model.max_tokens
             )
             logger.info("Bedrock model configured successfully")
         except Exception as e:
