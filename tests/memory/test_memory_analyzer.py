@@ -7,8 +7,6 @@ import numpy as np
 from unittest.mock import Mock, patch
 from collections import deque
 
-# Add project root to path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
 
 from src.memory.analyzer import MemoryAnalyzer
 from src.memory.models import MemoryItem

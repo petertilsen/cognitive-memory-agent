@@ -5,8 +5,6 @@ import sys
 import os
 from unittest.mock import Mock, patch
 
-# Add project root to path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
 
 from src.agent.librarian_agent import LibrarianAgent
 

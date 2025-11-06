@@ -6,8 +6,6 @@ import os
 from unittest.mock import Mock, patch, MagicMock
 from abc import ABC
 
-# Add project root to path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
 
 from src.agent.agent import BaseCognitiveAgent, CognitiveMemoryAgent
 
