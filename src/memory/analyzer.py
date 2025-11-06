@@ -103,15 +103,11 @@ class MemoryAnalyzer:
                 memory_reuse_ops = sum(1 for op in self.memory_system.operation_logs if op.get('type') == 'memory_reuse')
                 new_info_ops = sum(1 for op in self.memory_system.operation_logs if 'new_info' in op.get('type', '').lower())
                 
-                print(f"DEBUG: task_reuse_ops={task_reuse_ops}, memory_reuse_ops={memory_reuse_ops}, new_info_ops={new_info_ops}")
-                
                 total_reuse_ops = task_reuse_ops + memory_reuse_ops
                 total_ops = total_reuse_ops + new_info_ops
                 
                 # Calculate overall reuse rate (including task-level reuse)
                 overall_reuse_rate = total_reuse_ops / total_ops if total_ops > 0 else 0.0
-                
-                print(f"DEBUG: overall_reuse_rate={overall_reuse_rate}")
                 
                 # Calculate cross-task reuse rate (more meaningful metric)
                 if hasattr(self.memory_system, 'task_start_memory_size'):

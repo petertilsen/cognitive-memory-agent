@@ -100,38 +100,6 @@ def check_prerequisites():
     
     return True
 
-
-def demo_basic_research(librarian):
-    """Demonstrate basic research capabilities."""
-    print("\n" + "="*60)
-    print("📚 BASIC RESEARCH DEMONSTRATION")
-    print("="*60)
-    
-    try:
-        # Research queries
-        queries = [
-            "What is machine learning and how does it work?"
-        ]
-        
-        for i, query in enumerate(queries, 1):
-            print(f"\n--- Research Query {i} ---")
-            print(f"Query: {query}")
-            print("Processing...")
-            
-            response = librarian.research(query)
-            print(f"Response: {response[:200]}...")
-            
-            # Show memory status
-            status = librarian.get_memory_status()
-            print(f"Memory Status: {status['memory_utilization']}")
-        
-        return librarian
-        
-    except Exception as e:
-        print(f"❌ Demo failed: {e}")
-        return None
-
-
 def demo_memory_analysis(librarian):
     """Demonstrate memory analysis capabilities."""
     print("\n" + "="*60)

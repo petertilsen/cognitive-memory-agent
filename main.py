@@ -22,23 +22,15 @@ def main():
     load_dotenv()
     logger.info("Starting Cognitive Memory Agent application")
     
-    print("🧠 Cognitive Memory Agent - Strands SDK Integration")
-    print("=" * 50)
-    
     # Initialize agent
     try:
         agent = CognitiveMemoryAgent()
-        print("✓ Agent initialized successfully")
         logger.info("Agent initialized successfully")
     except Exception as e:
-        print(f"❌ Failed to initialize agent: {e}")
         logger.error(f"Failed to initialize agent: {e}", exc_info=True)
         return
     
     # Interactive demo
-    print("\nStarting interactive demo...")
-    print("Type 'quit' to exit, 'status' to check memory status")
-    print("-" * 50)
     logger.info("Starting interactive demo session")
     
     interaction_count = 0
@@ -50,7 +42,6 @@ def main():
             logger.debug(f"User interaction #{interaction_count}: {user_input[:100]}...")
             
             if user_input.lower() in ['quit', 'exit']:
-                print("Goodbye!")
                 logger.info(f"Session ended by user after {interaction_count} interactions")
                 break
             
