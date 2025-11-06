@@ -77,7 +77,7 @@ def check_prerequisites():
         if connected:
             print(f"✅ ChromaDB server accessible at {chroma_host}:{chroma_port}")
 
-            # flush_chromadb(chroma_host, chroma_port)  # Commented out - causes hanging
+            flush_chromadb(chroma_host, chroma_port)  # Commented out - causes hanging
         else:
             print(f"❌ ChromaDB server not responding at {chroma_host}:{chroma_port}")
             return False

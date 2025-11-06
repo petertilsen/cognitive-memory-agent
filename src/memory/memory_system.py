@@ -180,7 +180,7 @@ class CognitiveMemorySystem:
         logger.debug(f"Decomposing task: {task[:50]}...")
         
         decomposition_prompt = f"""
-        Decompose this task into subtasks:
+        Decompose this task into subtasks. You must not produce more than 5 items:
         Task: {task}
         Output format: List of subtasks
         """
@@ -306,7 +306,7 @@ class CognitiveMemorySystem:
 
 {combined_content}
 
-Please synthesize this information into a coherent and informative response."""
+Please synthesize this information into a coherent and informative, yet succinct response."""
         
         try:
             return str(self._synthesis_agent(synthesis_prompt))

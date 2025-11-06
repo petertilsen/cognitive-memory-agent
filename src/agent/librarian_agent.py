@@ -6,7 +6,7 @@ from strands import Agent
 from strands.models import BedrockModel
 from config.settings import get_logger, load_config
 from ..memory.memory_system import CognitiveMemorySystem
-from .tools.book_repository import fetch_book_content, search_openlibrary_books, search_local_knowledge
+from .tools.book_repository import fetch_book_content, search_openlibrary_books
 
 logger = get_logger("agent.librarian_agent")
 config = load_config()
@@ -40,7 +40,7 @@ class LibrarianAgent:
         # Create main Strands agent with librarian tools
         self.agent = Agent(
             model=self.model,
-            tools=[search_local_knowledge, search_openlibrary_books],
+            tools=[fetch_book_content, search_openlibrary_books],
             system_prompt=self.system_prompt
         )
 
