@@ -6,7 +6,7 @@ from abc import ABC, abstractmethod
 from strands import Agent
 from strands.models import BedrockModel
 from config.settings import get_logger, load_config
-from ..memory.memory_system import CognitiveMemorySystem
+from cognitive_memory import CognitiveMemorySystem
 
 logger = get_logger("agent.agent")
 config = load_config()

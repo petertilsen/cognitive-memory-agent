@@ -1,168 +1,153 @@
-# 🧠 Cognitive Memory Agent
+# 🧠 Cognitive Memory Agent Demo
 
-A production-ready AI agent with advanced cognitive memory capabilities that learns, remembers, and gets smarter with each interaction. Built with Strands Agents SDK, ChromaDB, and AWS Bedrock.
+A production-ready AI agent demonstration showcasing the [cognitive-memory](https://github.com/petertilsen/cognitive-memory) package in action. See how agents learn, remember, and get smarter with each interaction.
 
-## 🚀 Key Features
+## 🎯 What This Demonstrates
 
-### Advanced Cognitive Memory System
-This agent implements sophisticated memory operations that mirror human-like learning patterns:
+This LibrarianAgent shows real-world usage of the **cognitive-memory** package:
 
-- **Semantic Clustering**: Automatically organizes memories by conceptual similarity
-- **Forgetting Curve Decay**: Ebbinghaus-based relevance scoring that naturally fades irrelevant information  
-- **Memory Consolidation**: Promotes frequently accessed knowledge to long-term storage
-- **Progressive Reasoning**: Builds cumulative understanding across sessions (25-60% memory reuse vs 0% traditional RAG)
-- **Metacognitive Awareness**: Self-monitors memory gaps and information needs
-- **Attention Filtering**: Focuses on relevant memories during retrieval
-- **Task Decomposition**: Breaks complex queries into manageable subtasks
+- **Progressive Learning**: 25-60% memory reuse vs 0% traditional RAG
+- **Domain Expertise**: Builds specialized knowledge over time  
+- **Session Persistence**: Remembers across conversations
+- **Intelligent Research**: Proactive information gathering with tools
 
-### Multi-Layered Memory Architecture
-```
-Immediate Buffer (8 items) → Working Buffer (64 items) → Episodic Buffer (256 items) → Vector Store (∞)
-```
-
-- **Active Memory Management**: Proactive information preparation vs reactive retrieval
-- **Persistent Storage**: ChromaDB-based vector storage survives application restarts
-- **Performance Optimized**: 25x speedup through intelligent memory reuse
-
-## 🎯 Memory Advantages Over Traditional RAG
-
-| Feature | Traditional RAG | Cognitive Memory Agent |
-|---------|----------------|----------------------|
-| **Memory Reuse** | 0% (starts fresh each time) | 25-60% (learns from past interactions) |
-| **Information Preparation** | Reactive (search when needed) | Proactive (anticipates information needs) |
-| **Session Persistence** | None | Full conversation and knowledge retention |
-| **Learning Capability** | Static | Progressive improvement over time |
-| **Memory Organization** | None | Semantic clustering and consolidation |
-
-## 🛠️ Quick Start
+## 🚀 Quick Start
 
 ### Prerequisites
-- **ChromaDB Server**: Running instance (see [ChromaDB Documentation](https://docs.trychroma.com/))
-- **AWS Bedrock Access**: Configured credentials
+- **AWS Bedrock Access**: Configured credentials for Claude and Titan models
+- **ChromaDB Server**: See [cognitive-memory setup](https://github.com/petertilsen/cognitive-memory#chromadb-setup)
 - **Python 3.8+**
 
 ### Installation
 ```bash
-# Install dependencies
+git clone <this-repo-url>
+cd cognitive-memory-agent
 pip install -r requirements.txt
-
-# Install as development package
-pip install -e .
-
-# Configure environment
-cp .env.example .env
-# Edit .env with your AWS credentials and ChromaDB connection
 ```
 
-### Configuration
+### AWS Configuration
 ```env
-# AWS Bedrock
+# Copy and configure
+cp .env.example .env
+
+# Required AWS settings
 AWS_ACCESS_KEY_ID=your-access-key
 AWS_SECRET_ACCESS_KEY=your-secret-key
 AWS_REGION=us-east-1
 BEDROCK_MODEL=anthropic.claude-3-haiku-20240307-v1:0
-
-# ChromaDB Connection
-CHROMA_HOST=localhost
-CHROMA_PORT=8000
-CHROMA_COLLECTION=cognitive_memory
 ```
 
-### Usage
+### Run the Demo
 ```bash
-# Run the demo
 python demo_librarian.py
-
-# Or use programmatically
-python main.py
 ```
 
-## 🧪 Memory System Demo
+## 🧪 Progressive Learning Demo
 
-The `demo_librarian.py` demonstrates progressive learning:
+Watch the agent build expertise through memory reuse:
 
 ```python
 # Query 1: "What are activation functions?"
-# → 0% reuse (new topic), stores knowledge
+# → 0% reuse (new topic), researches and stores knowledge
 
-# Query 2: "Which is the most used activation function?" 
-# → 25% reuse (builds on previous knowledge)
+# Query 2: "Which activation function is most popular?" 
+# → 25% reuse (builds on stored activation function knowledge)
 
-# Query 3: "Why use ReLU over sigmoid?"
-# → 40% reuse (leverages accumulated understanding)
+# Query 3: "Why use ReLU over sigmoid in deep networks?"
+# → 40% reuse (leverages accumulated neural network understanding)
 
 # Query 4: "What is quantum computing?"
-# → 0% reuse (new topic), starts building new knowledge cluster
+# → 0% reuse (new domain), starts building quantum knowledge cluster
 ```
 
-**Result**: Each query becomes faster and more informed as the agent builds domain expertise.
+**Result**: Each query becomes faster and more informed as the agent accumulates domain expertise.
+
+## 🏗️ Agent Architecture
+
+```python
+from cognitive_memory import CognitiveMemorySystem
+from strands_agents import Agent
+
+class LibrarianAgent(Agent):
+    def __init__(self):
+        # Cognitive memory handles all learning and recall
+        self.memory_system = CognitiveMemorySystem.from_env()
+        
+        # Research tools for information gathering
+        self.tools = [ArxivSearchTool(), WebSearchTool()]
+    
+    def process_query(self, query):
+        # Memory system orchestrates the entire cognitive process
+        return self.memory_system.process_task(query, self.research(query))
+```
 
 ## 📊 Memory Analytics
 
-Monitor your agent's cognitive development:
+Monitor learning progress in real-time:
 
 ```python
-from src.memory.analyzer import MemoryAnalyzer
+from cognitive_memory.analyzer import MemoryAnalyzer
 
 analyzer = MemoryAnalyzer(agent.memory_system)
 report = analyzer.generate_memory_report()
 
-print(f"Memory reuse rate: {report['reuse_analysis']['reuse_rate']:.1%}")
-print(f"Working memory size: {report['buffer_analysis']['working_buffer']['size']}")
+print(f"Memory reuse: {report['reuse_analysis']['reuse_rate']:.1%}")
 print(f"Knowledge clusters: {report['consolidation_analysis']['semantic_clusters']}")
+print(f"Working memory: {report['buffer_analysis']['working_buffer']['size']}/64")
 ```
 
-## 🏗️ Architecture
+## 🔧 Customization
 
+### Add Your Own Tools
+```python
+from cognitive_memory import CognitiveMemorySystem
+
+class MyAgent:
+    def __init__(self):
+        self.memory_system = CognitiveMemorySystem.from_env()
+        self.tools = [YourCustomTool()]  # Add any research tools
+    
+    def chat(self, message):
+        documents = self.research_with_tools(message)
+        result = self.memory_system.process_task(message, documents)
+        return result['final_synthesis']
 ```
-src/
-├── agent/
-│   ├── agent.py              # BaseCognitiveAgent template
-│   ├── librarian_agent.py    # Domain-specific implementation
-│   └── tools/                # Research and retrieval tools
-└── memory/                   # Complete cognitive memory system
-    ├── memory_system.py      # Core memory management
-    ├── models.py             # Memory data structures
-    ├── vector_store.py       # ChromaDB integration
-    └── analyzer.py           # Memory analytics and insights
+
+### Different Memory Configurations
+```python
+from cognitive_memory import CognitiveMemorySystem, MemoryConfig
+
+# Custom memory settings
+config = MemoryConfig(
+    immediate_buffer_size=16,    # Increase immediate memory
+    working_buffer_size=128,     # Larger working memory
+    episodic_buffer_size=512     # More episodic storage
+)
+
+memory_system = CognitiveMemorySystem(config)
 ```
 
-## 🔬 Memory System Internals
+## 📈 Performance Benefits
 
-### Memory Operations
-- `process_task(task, documents)`: Main cognitive processing entry point
-- `get_metacognitive_status()`: Self-awareness of memory state and gaps
-- `_consolidate_memory()`: Automatic memory organization and cleanup
-- `_semantic_clustering()`: Groups related memories by conceptual similarity
+Compared to traditional RAG systems:
 
-### Memory Analytics
-- **Buffer Flow Analysis**: Memory distribution across layers
-- **Reuse Tracking**: Demonstrates 50-60% advantage over traditional RAG
-- **Consolidation Patterns**: Memory decay, promotion, and clustering insights
-- **State Evolution**: Tracks cognitive development over time
-
-## 🚀 Performance Features
-
-- **Vectorized Operations**: Batch processing for clustering and similarity search
-- **Distance-based Metrics**: Optimized similarity calculations
-- **Lazy Evaluation**: Memory-efficient buffer iteration
-- **Semantic Search**: Vector similarity over keyword matching
-
-## 📈 Benchmarks
-
-- **Memory Reuse**: 25-60% vs 0% traditional RAG
-- **Performance**: 25x speedup through knowledge reuse
-- **Accuracy**: Progressive improvement with accumulated domain knowledge
-- **Efficiency**: Proactive information preparation reduces redundant processing
+| Metric | Traditional RAG | Cognitive Memory Agent |
+|--------|----------------|----------------------|
+| **Memory Reuse** | 0% | 25-60% |
+| **Response Speed** | Baseline | 25x faster (with reuse) |
+| **Learning** | None | Progressive improvement |
+| **Context** | Single session | Persistent across sessions |
 
 ## 🤝 Contributing
 
-This project demonstrates advanced cognitive memory patterns for AI agents. Contributions welcome for:
+This demo shows cognitive-memory package integration. Contribute:
 
-- Additional domain-specific agents
-- Memory optimization techniques  
-- Analytics and visualization improvements
-- Integration with other LLM frameworks
+- **New agent types**: Different domains (legal, medical, technical)
+- **Tool integrations**: Additional research and data sources  
+- **Memory configurations**: Specialized setups for different use cases
+- **Performance examples**: Benchmarks and optimization demos
+
+For memory system improvements, contribute to [cognitive-memory](https://github.com/petertilsen/cognitive-memory).
 
 ## 📄 License
 
@@ -170,4 +155,4 @@ MIT License - See LICENSE file for details.
 
 ---
 
-**Built with**: [Strands Agents SDK](https://github.com/StrAnds-AI/strands-agents) • [ChromaDB](https://www.trychroma.com/) • [AWS Bedrock](https://aws.amazon.com/bedrock/)
+**Powered by**: [cognitive-memory](https://github.com/petertilsen/cognitive-memory) • [Strands Agents SDK](https://github.com/StrAnds-AI/strands-agents) • [AWS Bedrock](https://aws.amazon.com/bedrock/)

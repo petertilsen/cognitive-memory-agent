@@ -117,3 +117,4 @@ Thumbs.db
 # Application logs
 logs/
 *.log
+cognitive-memory/

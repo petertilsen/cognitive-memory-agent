@@ -20,7 +20,7 @@ sys.path.insert(0, str(Path(__file__).parent / "src"))
 sys.path.insert(0, str(Path(__file__).parent))
 
 from src.agent.librarian_agent import LibrarianAgent
-from src.memory.analyzer import MemoryAnalyzer
+from cognitive_memory import MemoryAnalyzer
 
 
 def flush_chromadb(host: str = "localhost", port: int = 8000):
