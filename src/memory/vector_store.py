@@ -86,8 +86,8 @@ class VectorStore:
             logger.error(f"Failed to add document: {e}")
             raise
 
-    def search(self, query: str, top_k: int = 5, threshold: float = 0.0) -> List[Tuple[str, float, str, Dict]]:
-        """Search for similar texts."""
+    def search(self, query: str, top_k: int = 5, threshold: float = 2.0) -> List[Tuple[str, float, str, Dict]]:
+        """Search for similar texts using distance scores (lower = better)."""
         logger.debug(f"Searching for: '{query[:50]}...', top_k={top_k}")
         
         try:
@@ -99,19 +99,20 @@ class VectorStore:
                 include=["documents", "metadatas", "distances"]
             )
             
-            # Convert ChromaDB results to our format
+            # Use distances directly with vectorized operations
             search_results = []
             if results["ids"] and len(results["ids"]) > 0:
-                for i, doc_id in enumerate(results["ids"][0]):
-                    distance = results["distances"][0][i]
-                    # ChromaDB uses squared Euclidean distance, convert to similarity score
-                    # Use inverse relationship: smaller distance = higher similarity
-                    similarity = 1.0 / (1.0 + distance)  # Always between 0 and 1
-                    
-                    if similarity >= threshold:
-                        document = results["documents"][0][i]
-                        metadata = results["metadatas"][0][i] or {}
-                        search_results.append((doc_id, similarity, document, metadata))
+                # Vectorized distance filtering
+                distances = np.array(results["distances"][0])
+                valid_indices = np.where(distances <= threshold)[0]
+                
+                # Build results only for valid items
+                for i in valid_indices:
+                    doc_id = results["ids"][0][i]
+                    distance = distances[i]
+                    document = results["documents"][0][i]
+                    metadata = results["metadatas"][0][i] or {}
+                    search_results.append((doc_id, distance, document, metadata))
             
             logger.debug(f"Search found {len(search_results)} results")
             return search_results

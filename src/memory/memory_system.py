@@ -2,6 +2,7 @@
 
 import os
 import time
+import itertools
 from collections import deque
 from typing import List, Dict, Optional, Any, Tuple
 import numpy as np
@@ -267,30 +268,32 @@ class CognitiveMemorySystem:
         return insights
 
     def _check_working_memory(self, query: str) -> List[MemoryItem]:
-        """Check relevant information in working memory with strict semantic matching."""
+        """Check relevant information using vector distance (lower = better)."""
+        if not self.vector_store:
+            return []
+        
+        query_embedding = self.vector_store.embed(query)
         relevant_items = []
-
-        all_buffers = (
-            list(self.working_buffer)
-            + list(self.immediate_buffer)
-            + list(self.episodic_buffer)
+        
+        # Check items in memory buffers using vector distance
+        all_buffers = itertools.chain(
+            self.working_buffer,
+            self.immediate_buffer,
+            self.episodic_buffer
         )
-
+        
         for item in all_buffers:
-            query_words = set(query.lower().split())
-            content_words = set(item.content.lower().split())
-
-            # Very strict matching: require high word overlap (>50%) AND semantic relevance
-            overlap = len(query_words & content_words)
-            overlap_ratio = overlap / len(query_words) if query_words else 0
-            
-            # Only consider it relevant if:
-            # 1. Very high word overlap (>50% of query words match), AND
-            # 2. Content is substantial (not just generic phrases)
-            if overlap_ratio > 0.5 and len(item.content) > 100:
-                item.boost()
-                relevant_items.append(item)
-
+            if hasattr(item.embedding, 'size') and item.embedding.size > 0:  # Skip items without embeddings
+                # Calculate cosine distance (1.0 - cosine_similarity)
+                cosine_similarity = np.dot(query_embedding, item.embedding) / (
+                    np.linalg.norm(query_embedding) * np.linalg.norm(item.embedding)
+                )
+                distance = 1.0 - cosine_similarity
+                
+                if distance < 0.3 and len(item.content) > 100:  # Lower distance = better match
+                    item.boost()
+                    relevant_items.append(item)
+        
         return relevant_items
 
     def _synthesize_from_memory(self, memory_items: List[MemoryItem]) -> str:
@@ -524,10 +527,10 @@ Please synthesize this information into a coherent and informative, yet succinct
             logger.error(f"Final synthesis failed: {e}")
             return f"Task: {task}. Based on analysis: {'; '.join(insights[:3])}"
 
-    def _find_similar_memories(self, content: str, threshold: float = 0.8) -> List[Tuple[float, str]]:
-        """Find similar existing memories."""
+    def _find_similar_memories(self, content: str, threshold: float = 1.5) -> List[Tuple[float, str]]:
+        """Find similar existing memories using distance scores (lower = better)."""
         results = self.vector_store.search(content, top_k=5, threshold=threshold)
-        return [(similarity, text) for _, similarity, text, _ in results]
+        return [(distance, text) for _, distance, text, _ in results]
 
     def _search_buffers(self, query: str) -> List[Tuple[str, float, str]]:
         """Search memory buffers for relevant content."""
@@ -557,17 +560,17 @@ Please synthesize this information into a coherent and informative, yet succinct
         combined = []
         
         # Add vector results with metadata
-        for idx, similarity, content, metadata in vector_results:
-            combined.append((idx, similarity * 1.2, content, metadata))  # Boost vector results
+        for idx, distance, content, metadata in vector_results:
+            combined.append((idx, distance, content, metadata))  # Use distance directly
         
         # Add buffer results
         for buffer_name, relevance, content in buffer_results:
             # Check if already in vector results
             if not any(content == c for _, _, c, _ in combined):
-                combined.append((len(combined), relevance, content, {"source_buffer": buffer_name}))
+                combined.append((len(combined), 2.0 - relevance, content, {"source_buffer": buffer_name}))  # Convert to distance-like score
         
-        # Sort by similarity/relevance and return top_k
-        combined.sort(key=lambda x: x[1], reverse=True)
+        # Sort by distance (ascending - lower is better)
+        combined.sort(key=lambda x: x[1])
         return combined[:top_k]
 
     def _update_access_pattern(self, content: str) -> None:
@@ -629,22 +632,43 @@ Please synthesize this information into a coherent and informative, yet succinct
         logger.debug(f"Memory consolidation complete: removed {removed_count}, promoted {promoted_count}, {cluster_count} clusters")
 
     def _organize_semantic_clusters(self) -> int:
-        """Organize memories into semantic clusters."""
+        """Organize memories into semantic clusters using batch similarity computation."""
+        if len(self.episodic_buffer) < 2:
+            return 0
+        
         clusters = {}
         cluster_count = 0
         
-        for item in self.episodic_buffer:
-            # Find cluster or create new one
+        # Extract all embeddings at once for batch processing
+        items = list(self.episodic_buffer)
+        embeddings = np.array([item.embedding for item in items])
+        
+        for i, item in enumerate(items):
             assigned = False
-            for cluster_key, cluster_items in clusters.items():
-                if len(cluster_items) > 0:
-                    similarity = self.vector_store._cosine_similarity(
-                        item.embedding, cluster_items[0].embedding
+            
+            # Batch compute similarities against all existing cluster centroids
+            if clusters:
+                cluster_centroids = []
+                cluster_keys = []
+                
+                for cluster_key, cluster_items in clusters.items():
+                    if cluster_items:
+                        cluster_centroids.append(cluster_items[0].embedding)
+                        cluster_keys.append(cluster_key)
+                
+                if cluster_centroids:
+                    # Vectorized distance computation (1.0 - cosine_similarity)
+                    centroids_array = np.array(cluster_centroids)
+                    cosine_similarities = np.dot(centroids_array, embeddings[i]) / (
+                        np.linalg.norm(centroids_array, axis=1) * np.linalg.norm(embeddings[i])
                     )
-                    if similarity > 0.8:
-                        cluster_items.append(item)
+                    distances = 1.0 - cosine_similarities
+                    
+                    # Find best matching cluster (lowest distance)
+                    best_idx = np.argmin(distances)
+                    if distances[best_idx] < 0.2:  # Lower distance = better match
+                        clusters[cluster_keys[best_idx]].append(item)
                         assigned = True
-                        break
             
             if not assigned:
                 clusters[f"cluster_{cluster_count}"] = [item]
@@ -659,12 +683,12 @@ Please synthesize this information into a coherent and informative, yet succinct
             results = self.vector_store.search(task, top_k=5)
             # Convert search results to MemoryItem objects
             memory_items = []
-            for doc_id, similarity, document, metadata in results:
-                if similarity > 0.005:  # Higher threshold for task-level reuse
+            for doc_id, distance, document, metadata in results:
+                if distance < 1.5:  # Lower distance = better match
                     memory_item = MemoryItem(
                         content=document,
                         embedding=np.array([]),  # Empty embedding for reuse
-                        relevance_score=similarity,
+                        relevance_score=2.0 - distance,  # Convert distance to relevance score
                         access_count=1,
                         task_context=task,
                         source="chromadb_reuse"

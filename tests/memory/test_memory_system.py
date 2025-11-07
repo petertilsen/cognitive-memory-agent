@@ -119,6 +119,7 @@ class TestCognitiveMemorySystem(unittest.TestCase):
         mock_vector_store_instance = Mock()
         mock_vector_store_instance.count.return_value = 10
         mock_vector_store_instance.vectors = [None] * 10  # Mock the vectors property
+        mock_vector_store_instance.embed.return_value = np.array([0.5, 0.5, 0.5])  # Mock embedding
         mock_vector_store.return_value = mock_vector_store_instance
         
         system = CognitiveMemorySystem()
@@ -157,6 +158,7 @@ class TestCognitiveMemorySystem(unittest.TestCase):
         mock_vector_store_instance = Mock()
         mock_vector_store_instance.search.return_value = []
         mock_vector_store_instance.vectors = []  # Add vectors property
+        mock_vector_store_instance.embed.return_value = np.array([0.5, 0.5, 0.5])  # Mock embedding
         mock_vector_store.return_value = mock_vector_store_instance
         
         system = CognitiveMemorySystem()
@@ -174,15 +176,17 @@ class TestCognitiveMemorySystem(unittest.TestCase):
         """Test attention mechanism filtering."""
         mock_bedrock.return_value = self.mock_embedding_model
         mock_agent.return_value = Mock()
-        mock_vector_store.return_value = Mock()
+        mock_vector_store_instance = Mock()
+        mock_vector_store_instance.embed.return_value = np.array([0.5, 0.5, 0.5])  # Mock query embedding
+        mock_vector_store.return_value = mock_vector_store_instance
         
         system = CognitiveMemorySystem()
         
         # Add items with different relevance scores to working buffer
         system.working_buffer.extend([
-            MemoryItem(content="high importance", embedding=np.array([0.1, 0.2, 0.3]), relevance_score=0.9),
-            MemoryItem(content="low importance", embedding=np.array([0.4, 0.5, 0.6]), relevance_score=0.3),
-            MemoryItem(content="medium importance", embedding=np.array([0.7, 0.8, 0.9]), relevance_score=0.6)
+            MemoryItem(content="high importance" * 20, embedding=np.array([0.1, 0.2, 0.3]), relevance_score=0.9),  # Make content longer
+            MemoryItem(content="low importance" * 20, embedding=np.array([0.4, 0.5, 0.6]), relevance_score=0.3),
+            MemoryItem(content="medium importance" * 20, embedding=np.array([0.7, 0.8, 0.9]), relevance_score=0.6)
         ])
         
         # Test working memory check functionality
@@ -203,6 +207,7 @@ class TestCognitiveMemorySystem(unittest.TestCase):
         mock_vector_store_instance = Mock()
         mock_vector_store_instance.search.return_value = []  # Return empty list instead of exception
         mock_vector_store_instance.vectors = []  # Add vectors property
+        mock_vector_store_instance.embed.return_value = np.array([0.5, 0.5, 0.5])  # Mock embedding
         mock_vector_store.return_value = mock_vector_store_instance
         
         system = CognitiveMemorySystem()
