@@ -53,8 +53,7 @@ class BaseCognitiveAgent(ABC):
         # Initialize cognitive memory system (manages its own models)
         self.memory_system = CognitiveMemorySystem(
             embedding_model_id=self.embedding_model_id,
-            synthesis_model_id=self.synthesis_model_id,
-            region=self.region
+            synthesis_model_id=self.synthesis_model_id
         )
         
         logger.info(f"{self.__class__.__name__} initialized successfully")
